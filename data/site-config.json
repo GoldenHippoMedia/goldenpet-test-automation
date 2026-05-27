@@ -1,0 +1,153 @@
+{
+  "testCards": {
+    "uat": {
+      "number": "4111111111111111",
+      "expiry": "12/26",
+      "cvv": "123",
+      "postalCode": "91364"
+    }
+  },
+  "brands": {
+    "drmarty": {
+      "displayName": "Dr. Marty Pets",
+      "logoAltText": "Dr. Marty",
+      "storeLocatorUrl": "https://store.drmartypets.com/",
+      "urls": {
+        "uat": {
+          "base": "https://uat-int.drmartypets.com",
+          "login": "/login",
+          "account": "/my-account",
+          "register": "/signup",
+          "forgotPassword": "/reset-password",
+          "cart": "/cart",
+          "checkout": "/checkout",
+          "accountDetails": "/account-details",
+          "orderHistory": "/order-history",
+          "subscriptionEdit": "/subscription-edit",
+          "subscriptionCancellation": "/subscription-cancellation",
+          "pets": "/pets",
+          "products": "/products",
+          "subscribeSave": "/subscribe-save",
+          "reviews": "/reviews",
+          "faq": "/faq-bridge",
+          "contact": "/contact",
+          "terms": "/terms",
+          "privacy": "/privacy",
+          "privacyChoices": "/your-privacy-choices",
+          "paymentDetails": "/payment-details",
+          "orderConfirmation": "/order-confirmation"
+        },
+        "prod": {
+          "base": "https://drmartypets.com",
+          "login": "/login",
+          "account": "/my-account",
+          "register": "/signup",
+          "forgotPassword": "/reset-password",
+          "cart": "/cart",
+          "checkout": "/checkout",
+          "accountDetails": "/account-details",
+          "orderHistory": "/order-history",
+          "subscriptionEdit": "/subscription-edit",
+          "subscriptionCancellation": "/subscription-cancellation",
+          "pets": "/pets",
+          "products": "/products",
+          "subscribeSave": "/subscribe-save",
+          "reviews": "/reviews",
+          "faq": "/faq-bridge",
+          "contact": "/contact",
+          "terms": "/terms",
+          "privacy": "/privacy",
+          "privacyChoices": "/your-privacy-choices",
+          "paymentDetails": "/payment-details",
+          "orderConfirmation": "/order-confirmation"
+        }
+      },
+      "content": {
+        "shopHeading": "The Best Freeze Dried Dog Food For Canine Health",
+        "subscribeHeading": "The easiest way to care for your best friend",
+        "reviewsHeading": "Reviews from Pet Parents",
+        "faqHeading": "Frequently Asked Questions",
+        "accountHeading": "Account Management",
+        "orderHistoryHeading": "Order History",
+        "manageAccountHeading": "Manage Account",
+        "cartEmptyText": "Your cart is empty!",
+        "cartHeaderText": "Cart"
+      },
+      "testAddress": {
+        "firstName": "Golden",
+        "lastName": "Pet",
+        "email": "tester@goldenhippo.com",
+        "address1": "23251 Mulholland Drive",
+        "city": "Woodland Hills",
+        "state": "California",
+        "zip": "91364",
+        "phone": "5555555555"
+      }
+    },
+    "badlands": {
+      "displayName": "Badlands Ranch",
+      "logoAltText": "Badlands Ranch",
+      "storeLocatorUrl": "https://store.badlandsranch.com/",
+      "urls": {
+        "uat": {
+          "base": "https://uat-int.badlandsranch.com",
+          "login": "/login",
+          "account": "/my-account",
+          "register": "/signup",
+          "forgotPassword": "/reset-password",
+          "cart": "/cart",
+          "checkout": "/checkout",
+          "accountDetails": "/account-details",
+          "orderHistory": "/order-history",
+          "subscriptionEdit": "/subscription-edit",
+          "subscriptionCancellation": "/subscription-cancellation",
+          "pets": "/pets",
+          "products": "/products",
+          "subscribeSave": "/subscribe-save",
+          "reviews": "/reviews",
+          "faq": "/faq-bridge",
+          "contact": "/contact",
+          "terms": "/terms",
+          "privacy": "/privacy",
+          "privacyChoices": "/your-privacy-choices",
+          "orderConfirmation": "/order-confirmation"
+        },
+        "prod": {
+          "base": "https://badlandsranch.com",
+          "login": "/login",
+          "account": "/my-account",
+          "register": "/signup",
+          "forgotPassword": "/reset-password",
+          "cart": "/cart",
+          "checkout": "/checkout",
+          "accountDetails": "/account-details",
+          "orderHistory": "/order-history",
+          "subscriptionEdit": "/subscription-edit",
+          "subscriptionCancellation": "/subscription-cancellation",
+          "pets": "/pets",
+          "products": "/products",
+          "subscribeSave": "/subscribe-save",
+          "reviews": "/reviews",
+          "faq": "/faq-bridge",
+          "contact": "/contact",
+          "terms": "/terms",
+          "privacy": "/privacy",
+          "privacyChoices": "/your-privacy-choices",
+          "paymentDetails": "/payment-details",
+          "orderConfirmation": "/order-confirmation"
+        }
+      },
+      "content": {
+        "shopHeading": "",
+        "subscribeHeading": "",
+        "reviewsHeading": "",
+        "faqHeading": "Frequently Asked Questions",
+        "accountHeading": "Account Management",
+        "orderHistoryHeading": "Order History",
+        "manageAccountHeading": "Manage Account",
+        "cartEmptyText": "Your cart is empty!",
+        "cartHeaderText": "Cart"
+      }
+    }
+  }
+}
