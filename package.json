@@ -25,7 +25,13 @@
     "cartv3:cart:add-qty-remove:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/CartV3/cart-add-change-qty-remove.spec.js --headed",
     "cartv3:cart:paypal:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/CartV3/cart-paypal-button.spec.js --headed",
     "cartv3:cart:shipping:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/CartV3/cart-shipping-threshold.spec.js --headed",
-    "cartv3:order:guest-cc:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/CartV3/order-guest-checkout-cc.spec.js --headed"
+    "cartv3:order:all:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/CartV3/order-*.spec.js --headed",
+    "cartv3:order:guest-cc:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/CartV3/order-guest-checkout-cc.spec.js --headed",
+    "cartv3:order:guest-paypal:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/CartV3/order-guest-checkout-paypal.spec.js --headed",
+    "cartv3:order:loggedin-cart-cc:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/CartV3/order-loggedin-cart-cc.spec.js --headed",
+    "cartv3:order:loggedin-cart-paypal:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/CartV3/order-loggedin-cart-paypal.spec.js --headed",
+    "cartv3:order:loggedin-checkout-cc:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/CartV3/order-loggedin-checkout-cc.spec.js --headed",
+    "cartv3:order:loggedin-checkout-paypal:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/CartV3/order-loggedin-checkout-paypal.spec.js --headed"
   },
   "repository": {
     "type": "git",

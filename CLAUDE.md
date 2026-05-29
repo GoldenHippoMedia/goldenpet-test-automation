@@ -2,7 +2,7 @@
 
 This file is auto-loaded by Claude Code. Read it first before doing any work in this folder.
 
-> **Last verified:** 2026-05-26 — CartV3 suite migrated from gh-auto-funnel-tools. 15 of 40 GI tests ported (all passing in source repo). Tests live in `tests/CartV3/` as `.spec.js` files.
+> **Last verified:** 2026-05-26 — CartV3 suite migrated from gh-auto-funnel-tools. 19 of 40 GI tests ported. The 6-test Order Placement batch was brought over from the `feature/order-tests` branch (guest CC/PayPal, logged-in cart CC/PayPal, logged-in checkout CC/PayPal) — passing in the source repo, **pending verification here**. Tests live in `tests/CartV3/` as `.spec.js` files. Requires `.env` with PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD for the PayPal tests.
 
 ---
 
@@ -92,9 +92,13 @@ goldenpet-test-automation/
     │   ├── cart-verify-fields-and-links.spec.js
     │   ├── cart-paypal-button.spec.js
     │   ├── cart-shipping-threshold.spec.js
-    │   ├── cart-submit-order.spec.js
     │   ├── cart-verify-header-links.spec.js  # REDUNDANT — header.spec.js covers it; safe to delete
     │   ├── order-guest-checkout-cc.spec.js
+    │   ├── order-guest-checkout-paypal.spec.js
+    │   ├── order-loggedin-cart-cc.spec.js          # renamed from cart-submit-order.spec.js
+    │   ├── order-loggedin-cart-paypal.spec.js
+    │   ├── order-loggedin-checkout-cc.spec.js
+    │   ├── order-loggedin-checkout-paypal.spec.js
     │   └── thank-you-page.spec.js
     └── (future suites go here as tests/<SuiteName>/)
 ```
@@ -104,7 +108,7 @@ goldenpet-test-automation/
 ## Migration Status (CartV3)
 
 ### Passing in source repo — needs verification here
-All 15 tests below were passing in `gh-auto-funnel-tools/Cartv3 tests/` before migration.
+All 19 tests below were passing in `gh-auto-funnel-tools/Cartv3 tests/` before migration.
 
 - `login.spec.js` — GI: Login
 - `header.spec.js` — GI: Header Navigation
@@ -119,10 +123,14 @@ All 15 tests below were passing in `gh-auto-funnel-tools/Cartv3 tests/` before m
 - `cart-verify-fields-and-links.spec.js`
 - `cart-paypal-button.spec.js`
 - `cart-shipping-threshold.spec.js`
-- `cart-submit-order.spec.js` — places real order; tagged `@real-order`
+- `order-loggedin-cart-cc.spec.js` — renamed from `cart-submit-order.spec.js`; logged-in user submits a real order from the cart with the default saved CC. Covers two duplicate GI tests ("Cart - Log In..." and "Order - Log In..."). Tagged `@real-order`
 - `order-guest-checkout-cc.spec.js` — places real Braintree sandbox order; tagged `@real-order`
+- `order-guest-checkout-paypal.spec.js` — Guest: cart → checkout → PayPal popup login → order. Uses PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD from `.env`. UAT only. Tagged `@real-order`
+- `order-loggedin-cart-paypal.spec.js` — Logged-in: PayPal button on the cart page; cart auto-submits after popup closes. UAT only. Skips `assertShippingThreshold` (logged-in free-shipping benefit). Tagged `@real-order`
+- `order-loggedin-checkout-cc.spec.js` — Logged-in: cart → /checkout (via shipping change link) → submit with saved CC. Skips `assertShippingThreshold`. Tagged `@real-order`
+- `order-loggedin-checkout-paypal.spec.js` — Logged-in: cart → /checkout → PayPal; /checkout auto-submits after popup closes. UAT only. Skips `assertShippingThreshold`. Tagged `@real-order`
 
-### Not yet ported (30 remaining)
+### Not yet ported (26 remaining)
 
 Cart / Checkout (1)
 - [ ] CartCheckout - Verify Subscription Terms
@@ -137,12 +145,12 @@ Checkout-V2 (8)
 - [ ] Validate Each Country's State Dropdowns
 - [ ] Validate Phone Number, CS Hours and Header Logo
 
-Order (5 remaining)
-- [ ] order-guest-checkout-paypal.spec.js — Guest: cart → checkout → PayPal (UAT only)
-- [ ] order-loggedin-cart-paypal.spec.js
-- [ ] order-loggedin-checkout-cc.spec.js
-- [ ] order-loggedin-checkout-paypal.spec.js
-- [ ] order-loggedin-list-reorder.spec.js
+Order Placement — ✅ all ported (pending verification here)
+All 6 order placement tests are now in `tests/CartV3/` (4 ported from the feature/order-tests
+branch + guest-cc + the renamed loggedin-cart-cc). See the "needs verification here" list above.
+
+Order History (1 remaining)
+- [ ] order-loggedin-list-reorder.spec.js — Order History page: verify list, "Buy It Again", "Re-Order". NOT an order placement test — exercises My Account → Order History UI.
 
 Upsell / Downsell (3-4) — backlog after Order tests
 - [ ] upsell-accept-first.spec.js
@@ -463,3 +471,15 @@ UAT Braintree test card: `4111 1111 1111 1111` exp `12/26` cvv `123` zip `91364`
 - Delete `tests/CartV3/cart-verify-header-links.spec.js` (redundant with `header.spec.js`)
 - Add new brands to `site-config.json` and `data/products/`
 - Add new test suites under `tests/<SuiteName>/`
+
+---
+
+## Backlog (post-migration)
+
+Capture ideas here so they don't get lost. Don't action until the migration is done — finishing the GI → Playwright port keeps the green-suite-as-safety-net intact for any future refactor.
+
+- **Product variant strategy refactor** — extend `brand.cartUrl()` (or add a sibling helper) to support variant pools / fallbacks per test, rather than each test hard-coding a single `productKey`. Driver: avoid Salesforce duplicate-order rejections on real-order tests and simplify per-test variant choice. Open questions to answer at refactor time: how often do dupes actually occur in CI, do all order tests need the same dodging strategy, and what other variant-related needs surfaced during the rest of the migration (e.g. subscription vs standard, price-tier targeting for shipping threshold).
+
+- **Logged-in /checkout with NEW credit card** — add `order-loggedin-checkout-newcc.spec.js` covering the path where a logged-in user clicks "Checkout with new card" on the cart (sibling of the saved-card flow in `order-loggedin-checkout-cc.spec.js`). Driver: the saved-card path uses the default card on file; the new-card path exercises the Braintree hosted-fields form, a different code path currently only covered by guest tests. No 1:1 GI source — new coverage. Use `cartPage.checkoutWithNewCardLink` to enter the flow; reuse `checkoutPage.fillCreditCard()` for the Braintree iframe inputs.
+
+- **Known catalog bug (Jira filed)** — Cart and Order Confirmation render different display names for the Tilly's Treasures variant ("Tilly's Treasure Beef Liver Treats" vs "Dr. Marty Tilly's Treasures - 1 Bag"). `assertProductNamesMatch` in `helpers/order-validations.js` is intentionally left strict so it keeps surfacing this mismatch — do NOT loosen the helper to make the test pass; the fix belongs in the catalog data.

@@ -25,16 +25,9 @@ test.describe('Cart - Submit Standard Order', () => {
     const productKey = randomNum % 2 === 0 ? 'loggedin_std_4' : 'loggedin_std_3';
     await cartPage.addProductByKey(productKey);
 
-    // If random was even, increase qty to further differentiate
-    if (randomNum % 2 === 0) {
-      await cartPage.increaseQuantity();
-    }
-
-    // Check CA terms checkbox if present (needed for CA subscription shipping)
-    const caTermsVisible = await cartPage.caTermsCheckbox.isVisible().catch(() => false);
-    if (caTermsVisible) {
-      await cartPage.caTermsCheckbox.click();
-    }
+    // NOTE: GI's step to tick `[data-qa="ca-terms-checkbox"]` was dropped —
+    // that checkbox no longer renders on the live cart (legacy element).
+    // Subscription Terms copy still appears for S&S items but it's informational, not a checkbox.
 
     // Click Submit Order
     await cartPage.submitOrderButton.click();
