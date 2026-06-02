@@ -1,6 +1,6 @@
-const { test, expect } = require('../../fixtures/brand');
-const { CartPage } = require('../../pages/cart.page');
-const { HeaderPage } = require('../../pages/header.page');
+const { test, expect } = require('../fixtures/brand');
+const { CartPage } = require('../pages/cart.page');
+const { HeaderPage } = require('../pages/header.page');
 
 // GI: "Cart - Verify Header Links (Mike)"
 // Validates logo and Shop links from the cart page navigate correctly.

@@ -1,15 +1,15 @@
-const { test, expect } = require('../../fixtures/brand');
-const { LoginPage } = require('../../pages/login.page');
-const { CartPage } = require('../../pages/cart.page');
-const { CheckoutPage } = require('../../pages/checkout.page');
-const { OrderConfirmationPage } = require('../../pages/order-confirmation.page');
+const { test, expect } = require('../fixtures/brand');
+const { LoginPage } = require('../pages/login.page');
+const { CartPage } = require('../pages/cart.page');
+const { CheckoutPage } = require('../pages/checkout.page');
+const { OrderConfirmationPage } = require('../pages/order-confirmation.page');
 const {
   assertOrderIdFormat,
   assertSnapshotsAgree,
   assertProductNamesMatch,
   assertMoneyMath,
   assertTaxApplied,
-} = require('../../helpers/order-validations');
+} = require('../helpers/order-validations');
 // NOTE: assertShippingThreshold intentionally not used — logged-in customers
 // get free shipping regardless of subtotal (account benefit overrides the
 // $50 guest threshold), so the helper would false-fail.

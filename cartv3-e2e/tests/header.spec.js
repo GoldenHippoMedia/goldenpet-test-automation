@@ -1,6 +1,6 @@
-const { test, expect } = require('../../fixtures/brand');
-const { LoginPage } = require('../../pages/login.page');
-const { HeaderPage } = require('../../pages/header.page');
+const { test, expect } = require('../fixtures/brand');
+const { LoginPage } = require('../pages/login.page');
+const { HeaderPage } = require('../pages/header.page');
 
 test.describe(`Header Navigation - ${process.env.BRAND || 'drmarty'}`, () => {
   // This test navigates to 12+ pages sequentially — needs extra time

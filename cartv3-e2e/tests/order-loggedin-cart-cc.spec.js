@@ -1,6 +1,6 @@
-const { test, expect } = require('../../fixtures/brand');
-const { LoginPage } = require('../../pages/login.page');
-const { CartPage } = require('../../pages/cart.page');
+const { test, expect } = require('../fixtures/brand');
+const { LoginPage } = require('../pages/login.page');
+const { CartPage } = require('../pages/cart.page');
 
 // GI: "Cart - Log In, Add Product then Submit Standard Order Using Default
 //      Credit Card (Mike)"

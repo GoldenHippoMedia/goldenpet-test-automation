@@ -1,5 +1,5 @@
-const { test, expect } = require('../../fixtures/brand');
-const { LoginPage } = require('../../pages/login.page');
+const { test, expect } = require('../fixtures/brand');
+const { LoginPage } = require('../pages/login.page');
 
 test.describe(`Login - ${process.env.BRAND}`, () => {
   test('successful login with valid credentials', async ({ page, brand }) => {

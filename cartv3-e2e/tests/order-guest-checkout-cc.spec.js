@@ -1,7 +1,7 @@
-const { test, expect } = require('../../fixtures/brand');
-const { CartPage } = require('../../pages/cart.page');
-const { CheckoutPage } = require('../../pages/checkout.page');
-const { OrderConfirmationPage } = require('../../pages/order-confirmation.page');
+const { test, expect } = require('../fixtures/brand');
+const { CartPage } = require('../pages/cart.page');
+const { CheckoutPage } = require('../pages/checkout.page');
+const { OrderConfirmationPage } = require('../pages/order-confirmation.page');
 const {
   assertOrderIdFormat,
   assertSnapshotsAgree,
@@ -10,7 +10,7 @@ const {
   assertConfirmationMatchesSubmission,
   assertTaxApplied,
   assertShippingThreshold,
-} = require('../../helpers/order-validations');
+} = require('../helpers/order-validations');
 
 // GI: "Order - Standard Product, Checkout using Credit Card (Guest)"
 //

@@ -1,7 +1,7 @@
-const { test, expect } = require('../../fixtures/brand');
-const { LoginPage } = require('../../pages/login.page');
-const { CartPage } = require('../../pages/cart.page');
-const { AccountDetailsPage } = require('../../pages/account-details.page');
+const { test, expect } = require('../fixtures/brand');
+const { LoginPage } = require('../pages/login.page');
+const { CartPage } = require('../pages/cart.page');
+const { AccountDetailsPage } = require('../pages/account-details.page');
 
 // GI: "Cart - Log In, Verify Fields and Links of the Cart (Mike)"
 // Logs in, captures shipping address from account details, adds product to cart,

@@ -1,34 +1,28 @@
-const { test, expect } = require('../../fixtures/brand');
-const { LoginPage } = require('../../pages/login.page');
-const { CartPage } = require('../../pages/cart.page');
-const { CheckoutPage } = require('../../pages/checkout.page');
-const { OrderConfirmationPage } = require('../../pages/order-confirmation.page');
+const { test, expect } = require('../fixtures/brand');
+const { CartPage } = require('../pages/cart.page');
+const { CheckoutPage } = require('../pages/checkout.page');
+const { OrderConfirmationPage } = require('../pages/order-confirmation.page');
 const {
   assertOrderIdFormat,
   assertSnapshotsAgree,
   assertProductNamesMatch,
   assertMoneyMath,
   assertTaxApplied,
-} = require('../../helpers/order-validations');
-// NOTE: assertShippingThreshold is intentionally NOT imported.
-// The <$50 → shipping fee rule applies to guest pricing only. Logged-in customers
-// get free shipping as an account benefit regardless of subtotal, so the threshold
-// assertion would false-fail for orders under $50.
+  assertShippingThreshold,
+} = require('../helpers/order-validations');
 
-// GI: "Order - Log In, Add a Standard product, Checkout using PayPal (EXCLUDE PROD) (Mike)"
+// GI: "Order - Standard Product, Checkout using PayPal (Guest)"
 //
-// Flow: Login → Cart (logged-in) → Click PayPal button on cart → PayPal popup login
-//       → Popup closes → (cart auto-submits OR click Submit Order) → Confirmation
-//
-// Runs on UAT only ("EXCLUDE PROD") — places a real Braintree sandbox PayPal order.
-// PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD must be set in .env.
+// Flow: Cart (logged out) → Checkout As Guest → PayPal popup login → Submit → Confirmation
+// Runs on UAT only — uses Braintree sandbox PayPal credentials from .env.
+// PAYPAL_SANDBOX_EMAIL and PAYPAL_SANDBOX_PASSWORD must be set in .env.
 
-test.describe('Order - Logged-In Cart with PayPal', () => {
+test.describe('Order - Guest Checkout with PayPal', () => {
   // Generous timeout — PayPal popup + upsell funnel can take 60–90s
   test.setTimeout(180000);
 
   test(
-    'logged-in order: PayPal from cart page and validate confirmation',
+    'guest order: place PayPal order and validate data integrity across cart → checkout → confirmation',
     { tag: '@real-order' },
     async ({ page, brand }) => {
       const paypalEmail    = process.env.PAYPAL_SANDBOX_EMAIL;
@@ -40,29 +34,31 @@ test.describe('Order - Logged-In Cart with PayPal', () => {
         );
       }
 
-      const loginPage        = new LoginPage(page, brand);
       const cartPage         = new CartPage(page, brand);
       const checkoutPage     = new CheckoutPage(page, brand);
       const confirmationPage = new OrderConfirmationPage(page, brand);
 
-      // 1. Login
-      await loginPage.goto();
-      await loginPage.login();
+      // 1. Load cart with a logged-out standard product
+      await cartPage.addProductByKey('loggedout_std_1');
 
-      // 2. Add product to cart — randomize between 2 variants to dodge duplicate-order rejections
-      const productKey = Math.random() < 0.5 ? 'loggedin_std_2' : 'loggedin_std_3';
-      await cartPage.addProductByKey(productKey);
-
-      // 3. Snapshot cart state for cross-page assertions
+      // 2. Snapshot cart state
       const cartSnap = await cartPage.getOrderSummary();
       expect(cartSnap.productName, 'cart should have a product name').toBeTruthy();
       expect(cartSnap.quantity, 'cart should have a quantity').toBeGreaterThan(0);
       expect(cartSnap.subtotal, 'cart should have a subtotal').toBeGreaterThan(0);
 
-      // 4. Click PayPal button on the cart page and complete auth in the popup.
-      //    NOTE: GI's step to tick `[data-qa="ca-terms-checkbox"]` was dropped here —
-      //    that checkbox no longer renders on the live cart (legacy element).
-      //    Button is inside a cross-origin iframe; Braintree renders two iframes with the
+      // 3. Proceed as guest — checkout loads in PayPal-first mode (no need to switch to CC form)
+      await cartPage.checkoutAsGuestButton.click();
+      await checkoutPage.waitForCheckoutLoaded();
+
+      // 4. Snapshot checkout summary (tax will be "TBD" / null pre-PayPal since no address is filled yet)
+      const checkoutSnap = await checkoutPage.getOrderSummary();
+
+      // Cart → checkout: subtotal must agree
+      assertSnapshotsAgree(cartSnap, checkoutSnap, 'cart', 'checkout', ['subtotal']);
+
+      // 5. Click PayPal button and complete payment in the popup.
+      //    Button lives inside a cross-origin iframe; Braintree renders TWO iframes with the
       //    same title — target the visible one via `.component-frame.visible`.
       const paypalFrame = page.frameLocator('#paypal-button iframe.component-frame.visible');
 
@@ -71,42 +67,40 @@ test.describe('Order - Logged-In Cart with PayPal', () => {
         paypalFrame.locator('[role="button"], .paypal-button').first().click(),
       ]);
 
-      // --- PayPal sandbox login flow (same pattern as guest-paypal test) ---
+      // --- PayPal sandbox login flow ---
       await paypalPopup.waitForLoadState('domcontentloaded');
 
-      // Step 1: Email → Next
+      // Step 1: Enter email and click Next
+      // PayPal's login HTML drifts — accept multiple selectors for the Next button.
+      // Use pressSequentially() — PayPal's React-controlled inputs ignore fill()
+      // (same issue as Braintree hosted fields).
       await paypalPopup.locator('#email').waitFor({ state: 'visible', timeout: 20000 });
       await paypalPopup.locator('#email').click();
       await paypalPopup.locator('#email').pressSequentially(paypalEmail, { delay: 30 });
       await paypalPopup.locator('#btnNext, button:has-text("Next")').first().click();
 
-      // Step 2: Password → Log In (pressSequentially — PayPal ignores fill())
+      // Step 2: Enter password and log in
       await paypalPopup.locator('#password').waitFor({ state: 'visible', timeout: 15000 });
       await paypalPopup.locator('#password').click();
       await paypalPopup.locator('#password').pressSequentially(paypalPassword, { delay: 30 });
       await paypalPopup.locator('#btnLogin, button:has-text("Log In"), button:has-text("Log in")').first().click();
 
-      // Step 3: Review screen → confirm. Multiple selectors because PayPal labels drift.
+      // Step 3: Review and confirm payment.
+      //    PayPal's review screen labels vary by account/locale — try the common selectors.
       const confirmBtn = paypalPopup.locator(
         '#payment-submit-btn, [data-testid="submit-button-initial"], #confirmButtonTop, #submitOrderButton, button:has-text("Continue"), button:has-text("Pay Now")'
       ).first();
       await confirmBtn.waitFor({ state: 'visible', timeout: 30000 });
       await confirmBtn.click();
 
-      // Popup auto-closes after PayPal redirects back to merchant
+      // Popup auto-closes after redirect back to merchant
       await paypalPopup.waitForEvent('close', { timeout: 30000 }).catch(() => {});
 
-      // 6. After PayPal closes, the cart auto-submits the order — no manual Submit Order
-      //    click required (despite what the legacy GI test did). The page navigates from
-      //    /cart → /upsell (funnel) → /order-confirmation. Just wait for the confirmation
-      //    URL and decline upsells along the way.
-
-      // 7. Wait for /order-confirmation, declining upsells along the way.
-      //    waitForOrderConfirmation() works from any starting page — it just polls the URL.
+      // 6. Wait for /order-confirmation — polls and declines upsells if they render
       await checkoutPage.waitForOrderConfirmation();
       await confirmationPage.waitForConfirmationLoaded();
 
-      // 8. Snapshot confirmation
+      // 7. Snapshot confirmation + customer/address
       const confirmSnap   = await confirmationPage.getOrderSummary();
       const customer      = await confirmationPage.getCustomerInfo();
       const shippingAddr  = await confirmationPage.getShippingAddress();
@@ -115,8 +109,8 @@ test.describe('Order - Logged-In Cart with PayPal', () => {
       console.log(`\n========================================`);
       console.log(`  ORDER PLACED: ${orderId}`);
       console.log(`  Total:        $${confirmSnap.total?.toFixed(2)}`);
-      console.log(`  Payment:      PayPal (logged-in cart)`);
-      console.log(`  Variant:      ${productKey} (${brand.testProducts[productKey]})`);
+      console.log(`  Payment:      PayPal`);
+      console.log(`  Variant:      loggedout_std_1 (${brand.testProducts.loggedout_std_1})`);
       console.log(`  PayPal acct:  ${paypalEmail}`);
       console.log(`  Customer:     ${customer.raw}`);
       console.log(`  Ship to:      ${shippingAddr}`);
@@ -125,17 +119,17 @@ test.describe('Order - Logged-In Cart with PayPal', () => {
       test.info().annotations.push(
         { type: 'Order ID',        description: orderId },
         { type: 'Order Total',     description: `$${confirmSnap.total?.toFixed(2)}` },
-        { type: 'Payment Method',  description: 'PayPal (logged-in cart)' },
-        { type: 'Product Variant', description: `${productKey} (${brand.testProducts[productKey]})` },
+        { type: 'Payment Method',  description: 'PayPal' },
+        { type: 'Product Variant', description: `loggedout_std_1 (${brand.testProducts.loggedout_std_1})` },
         { type: 'PayPal Account',  description: paypalEmail },
       );
 
-      // 9. Validations
+      // 8. Validations
 
       // Order ID format
       assertOrderIdFormat(orderId);
 
-      // Cart → confirmation: quantity and subtotal flow through
+      // Cart → confirmation: quantity and subtotal flow through (strict equality)
       assertSnapshotsAgree(
         cartSnap, confirmSnap, 'cart', 'confirmation',
         ['quantity', 'subtotal']
@@ -149,10 +143,13 @@ test.describe('Order - Logged-In Cart with PayPal', () => {
       // Math sanity on confirmation
       assertMoneyMath(confirmSnap, 'confirmation');
 
-      // Tax applied (PayPal returns a US address)
+      // Tax was applied (PayPal sandbox account ships to a US address — should trigger tax)
       assertTaxApplied(confirmSnap);
 
-      // Sanity: confirmation page shows customer + shipping data from PayPal
+      // Shipping threshold business rule
+      assertShippingThreshold(confirmSnap, 'confirmation');
+
+      // Sanity: confirmation page shows a customer name and shipping address from PayPal
       expect(customer.name, 'confirmation should show customer name from PayPal').toBeTruthy();
       expect(customer.email, 'confirmation should show customer email from PayPal').toBeTruthy();
       expect(shippingAddr, 'confirmation should show shipping address from PayPal').toBeTruthy();

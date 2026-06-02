@@ -1,5 +1,5 @@
-const { test, expect } = require('../../fixtures/brand');
-const { CartPage } = require('../../pages/cart.page');
+const { test, expect } = require('../fixtures/brand');
+const { CartPage } = require('../pages/cart.page');
 
 // GI: "Cart - (Shipping Threshold) Add Products with Added Shipping and
 //      Free Shipping (Mike)"

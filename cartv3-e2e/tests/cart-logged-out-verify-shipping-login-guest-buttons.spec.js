@@ -1,5 +1,5 @@
-const { test, expect } = require('../../fixtures/brand');
-const { CartPage } = require('../../pages/cart.page');
+const { test, expect } = require('../fixtures/brand');
+const { CartPage } = require('../pages/cart.page');
 
 // GI: "Cart - While Logged Out, Verify Shipping Text, Test LOGIN &
 //      CHECKOUT AS GUEST Buttons (Mike)"

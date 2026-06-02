@@ -1,6 +1,6 @@
-const { test, expect } = require('../../fixtures/brand');
-const { LoginPage } = require('../../pages/login.page');
-const { HeaderPage } = require('../../pages/header.page');
+const { test, expect } = require('../fixtures/brand');
+const { LoginPage } = require('../pages/login.page');
+const { HeaderPage } = require('../pages/header.page');
 
 // GI: "No items in cart, login, user is redirected to Account Main (Jim)"
 // Guards against a past regression where logging in with no cart items

@@ -1,5 +1,5 @@
-const { test, expect } = require('../../fixtures/brand');
-const { SignupPage } = require('../../pages/signup.page');
+const { test, expect } = require('../fixtures/brand');
+const { SignupPage } = require('../pages/signup.page');
 
 // GI: "Create Account - Legal Sign-Up Checkbox and Links"
 // Verifies the Terms and Privacy Policy links on the signup page open the

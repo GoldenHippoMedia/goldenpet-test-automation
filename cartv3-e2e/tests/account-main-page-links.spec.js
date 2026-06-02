@@ -1,6 +1,6 @@
-const { test, expect } = require('../../fixtures/brand');
-const { LoginPage } = require('../../pages/login.page');
-const { MyAccountPage } = require('../../pages/my-account.page');
+const { test, expect } = require('../fixtures/brand');
+const { LoginPage } = require('../pages/login.page');
+const { MyAccountPage } = require('../pages/my-account.page');
 
 // GI: "My Account Main - Has 3 Orders, Shows Subscriptions, and Validate Links (Jim)"
 // Covers all body links on /my-account — Account Management section, My Recent Orders

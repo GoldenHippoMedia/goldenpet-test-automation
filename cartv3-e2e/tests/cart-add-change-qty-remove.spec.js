@@ -1,5 +1,5 @@
-const { test, expect } = require('../../fixtures/brand');
-const { CartPage } = require('../../pages/cart.page');
+const { test, expect } = require('../fixtures/brand');
+const { CartPage } = require('../pages/cart.page');
 
 // GI: "Cart - Add Product, Change Quantity, Remove Product from Cart (Mike)"
 // Adds a product, verifies qty/price, changes qty up and down, removes item.

@@ -1,6 +1,6 @@
-const { test, expect } = require('../../fixtures/brand');
-const { LoginPage } = require('../../pages/login.page');
-const { CartPage } = require('../../pages/cart.page');
+const { test, expect } = require('../fixtures/brand');
+const { LoginPage } = require('../pages/login.page');
+const { CartPage } = require('../pages/cart.page');
 
 // GI: "Cart - While Logged Out, Add a Standard Product, Verify Pricing is
 //      Updated from Standard to My Account Pricing After Login (Mike)"

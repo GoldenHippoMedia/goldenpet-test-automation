@@ -1,0 +1,54 @@
+{
+  "name": "goldenpet-test-automation",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+
+    "cartv3:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests --grep-invert @real-order",
+    "cartv3:prod": "BRAND=drmarty ENVIRONMENT=prod npx playwright test tests --grep-invert @real-order",
+    "cartv3:uat:headed": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests --headed --grep-invert @real-order",
+    "cartv3:prod:headed": "BRAND=drmarty ENVIRONMENT=prod npx playwright test tests --headed --grep-invert @real-order",
+    "cartv3:real-orders:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests --headed --grep @real-order",
+    "cartv3:real-orders:prod": "BRAND=drmarty ENVIRONMENT=prod npx playwright test tests --headed --grep @real-order",
+    "cartv3:debug": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests --debug",
+
+    "cartv3:login:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/login.spec.js --headed",
+    "cartv3:header:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/header.spec.js --headed",
+    "cartv3:auth:all:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/auth-*.spec.js tests/login.spec.js --headed",
+    "cartv3:auth:all:prod": "BRAND=drmarty ENVIRONMENT=prod npx playwright test tests/auth-*.spec.js tests/login.spec.js --headed",
+    "cartv3:cart:all:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/cart-*.spec.js --headed",
+    "cartv3:cart:add-qty-remove:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/cart-add-change-qty-remove.spec.js --headed",
+    "cartv3:cart:paypal:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/cart-paypal-button.spec.js --headed",
+    "cartv3:cart:shipping:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/cart-shipping-threshold.spec.js --headed",
+    "cartv3:order:all:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-*.spec.js --headed",
+    "cartv3:order:guest-cc:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-guest-checkout-cc.spec.js --headed",
+    "cartv3:order:guest-paypal:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-guest-checkout-paypal.spec.js --headed",
+    "cartv3:order:loggedin-cart-cc:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-loggedin-cart-cc.spec.js --headed",
+    "cartv3:order:loggedin-cart-paypal:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-loggedin-cart-paypal.spec.js --headed",
+    "cartv3:order:loggedin-checkout-cc:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-loggedin-checkout-cc.spec.js --headed",
+    "cartv3:order:loggedin-checkout-paypal:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-loggedin-checkout-paypal.spec.js --headed"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/scott-langdon-gh/goldenpet-test-automation.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/scott-langdon-gh/goldenpet-test-automation/issues"
+  },
+  "homepage": "https://github.com/scott-langdon-gh/goldenpet-test-automation#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
+  },
+  "dependencies": {
+    "csv-parse": "^6.2.1",
+    "dotenv": "^17.4.2"
+  }
+}

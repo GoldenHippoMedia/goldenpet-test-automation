@@ -1,6 +1,6 @@
-const { test, expect } = require('../../fixtures/brand');
-const { LoginPage } = require('../../pages/login.page');
-const { CartPage } = require('../../pages/cart.page');
+const { test, expect } = require('../fixtures/brand');
+const { LoginPage } = require('../pages/login.page');
+const { CartPage } = require('../pages/cart.page');
 
 // GI: "Cart - Log In, Verify Functionality of the PayPal Button (Mike)"
 // Verifies PayPal button opens PayPal popup for both standard and subscription

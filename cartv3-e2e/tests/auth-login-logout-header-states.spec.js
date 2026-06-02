@@ -1,7 +1,7 @@
-const { test, expect } = require('../../fixtures/brand');
-const { LoginPage } = require('../../pages/login.page');
-const { HeaderPage } = require('../../pages/header.page');
-const { CartPage } = require('../../pages/cart.page');
+const { test, expect } = require('../fixtures/brand');
+const { LoginPage } = require('../pages/login.page');
+const { HeaderPage } = require('../pages/header.page');
+const { CartPage } = require('../pages/cart.page');
 
 // GI: "Login and Out Check Headers and Cart (Jim)"
 // Verifies: logged-out header state → login via header link → "Hi," greeting →

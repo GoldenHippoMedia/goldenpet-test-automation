@@ -1,13 +1,13 @@
-const { test, expect } = require('../../fixtures/brand');
-const { LoginPage } = require('../../pages/login.page');
-const { CartPage } = require('../../pages/cart.page');
-const { CheckoutPage } = require('../../pages/checkout.page');
-const { OrderConfirmationPage } = require('../../pages/order-confirmation.page');
+const { test, expect } = require('../fixtures/brand');
+const { LoginPage } = require('../pages/login.page');
+const { CartPage } = require('../pages/cart.page');
+const { CheckoutPage } = require('../pages/checkout.page');
+const { OrderConfirmationPage } = require('../pages/order-confirmation.page');
 const {
   assertOrderIdFormat,
   assertMoneyMath,
   assertTaxApplied,
-} = require('../../helpers/order-validations');
+} = require('../helpers/order-validations');
 
 // GI: "Thank You Page - Customer & Order Information Displayed on Order Confirmation (EXCLUDE PROD)"
 // UAT ONLY — test account has an Amex card saved in UAT that is not valid in prod.
