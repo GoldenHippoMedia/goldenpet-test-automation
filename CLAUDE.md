@@ -20,6 +20,8 @@ read the CLAUDE.md inside whichever tool folder you're working in.
   context, gotchas, migration status, and selector reference in
   [`cartv3-e2e/CLAUDE.md`](./cartv3-e2e/CLAUDE.md).
 
+- **`playwright-funnel-tests-tracker/`** — QA tracking docs for Playwright funnel E2E specs across brands. Each brand has its own subfolder (e.g. `hartfelt-prepurchase/`). Contains `os-tests.md` and other spec trackers documenting what's covered, TODO, and known issues.
+
 Future tools (e.g. `cartv3-unit/`, `api-tests/`, `badlands-e2e/`) will live as
 **siblings** here, NOT inside `cartv3-e2e/`. Each new tool gets its own
 folder, its own dependencies, its own config, and its own CLAUDE.md.
