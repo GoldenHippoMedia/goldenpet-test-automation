@@ -251,7 +251,7 @@ npm run report
 | Saved card select | `[data-qa="saved-card"]` |
 | Submit Order button | `[data-qa="submit-order-btn"]` |
 | Continue Shopping | `[data-qa="continue-btn"]` |
-| Coupon input | `[data-qa="coupon-code"]` |
+| Coupon input | `[data-qa="coupon-code"] input` (qa is on `gh-input` wrapper) |
 | Coupon Apply button | `[data-qa="coupon-apply-btn"]` |
 | Toast message | `[data-qa="toast-message"]` |
 | "Checkout with new card" | `button:has-text("Checkout with new card")` — no data-qa yet |

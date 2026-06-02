@@ -1,7 +1,18 @@
 // @ts-check
+const fs = require('fs');
+const path = require('path');
 const { defineConfig, devices } = require('@playwright/test');
 
-require('dotenv').config();
+const envPaths = [
+  path.resolve(__dirname, '.env'),
+  path.resolve(__dirname, '..', '.env'),
+];
+for (const envPath of envPaths) {
+  if (fs.existsSync(envPath)) {
+    require('dotenv').config({ path: envPath });
+    break;
+  }
+}
 
 module.exports = defineConfig({
   testDir: './tests',

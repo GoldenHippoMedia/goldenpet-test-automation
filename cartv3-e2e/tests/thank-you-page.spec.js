@@ -42,13 +42,8 @@ test.describe('Order - Thank You Page Confirmation Display', () => {
         await cartPage.increaseQuantity();
       }
 
-      // Apply coupon (optional — can intermittently fail in UAT)
-      const couponVisible = await cartPage.couponInput.isVisible().catch(() => false);
-      if (couponVisible) {
-        await cartPage.couponInput.fill('AUTOTEST1');
-        await cartPage.couponApply.click().catch(() => {});
-        await page.waitForTimeout(1500);
-      }
+      // Apply coupon (optional — can intermittently fail in UAT; GI optional steps)
+      await cartPage.applyCouponIfPresent('AUTOTEST1');
 
       // Navigate to checkout via the shipping address change link
       await cartPage.changeShippingLink.click();
