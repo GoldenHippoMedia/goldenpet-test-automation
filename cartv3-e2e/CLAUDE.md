@@ -174,7 +174,7 @@ Manage Payments (1)
 - [ ] Manage Payments - Add Credit Card
 
 Special Rules (4)
-- [ ] DrMartyPets - Country Selections in Manage Account
+- [ ] DrMartyPets - Country Selections in Manage Account — ported as `special-rules-drmarty-country-selections.spec.js`, pending verification
 - [ ] Dr Marty Pets - Sticky Footer Bundle Coupon Check
 - [ ] Dr Marty Pets - Sticky Footer Bundle Opt-In
 - [ ] Dr Marty Pets - Sticky Footer Bundle Subscription Check
