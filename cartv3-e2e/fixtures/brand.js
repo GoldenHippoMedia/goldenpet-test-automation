@@ -2,7 +2,17 @@ const { test: base, expect } = require('@playwright/test');
 const { parse } = require('csv-parse/sync');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
+// Prefer cartv3-e2e/.env; fall back to repo-root .env (common local setup)
+const envPaths = [
+  path.resolve(__dirname, '..', '.env'),
+  path.resolve(__dirname, '..', '..', '.env'),
+];
+for (const envPath of envPaths) {
+  if (fs.existsSync(envPath)) {
+    require('dotenv').config({ path: envPath });
+    break;
+  }
+}
 
 const brand = process.env.BRAND || 'drmarty';
 const env = process.env.ENVIRONMENT || 'uat';
@@ -67,6 +77,13 @@ const test = base.extend({
     const brandUpper = brand.toUpperCase().replace(/-/g, '_');
     const email = process.env[`${brandUpper}_TEST_EMAIL`];
     const password = process.env[`${brandUpper}_TEST_PASSWORD`];
+
+    if (!email || !password) {
+      throw new Error(
+        `Missing login credentials. Set ${brandUpper}_TEST_EMAIL and ${brandUpper}_TEST_PASSWORD ` +
+          'in cartv3-e2e/.env or the repo-root .env file.'
+      );
+    }
 
     // Load product catalog from CSV (if exists)
     const csvPath = path.join(__dirname, '..', 'data', `${brand}-${env}.csv`);

@@ -51,8 +51,8 @@ class CartPage extends BasePage {
     // --- PayPal (renders as a div with PayPal's iframe inside, not a <button>) ---
     this.paypalButton = page.locator('#paypal-button');
 
-    // --- Coupon ---
-    this.couponInput = page.locator('[data-qa="coupon-code"]');
+    // --- Coupon (data-qa is on gh-input wrapper; target inner input) ---
+    this.couponInput = page.locator('[data-qa="coupon-code"] input, input[data-qa="coupon-code"]');
     this.couponApply = page.locator('[data-qa="coupon-apply-btn"]');
 
     // --- Toast Messages ---
@@ -160,6 +160,24 @@ class CartPage extends BasePage {
 
   async isCartEmpty() {
     return await this.emptyCartMessage.or(this.noItemsMessage).isVisible().catch(() => false);
+  }
+
+  /**
+   * Apply a promo code when the cart coupon field is present.
+   * GI marked coupon steps optional — UAT can block or flake coupon entry.
+   */
+  async applyCouponIfPresent(code) {
+    const visible = await this.couponInput.first().isVisible().catch(() => false);
+    if (!visible) return false;
+
+    try {
+      await this.couponInput.first().fill(code);
+      await this.couponApply.click({ timeout: 5000 });
+      await this.page.waitForTimeout(1500);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
