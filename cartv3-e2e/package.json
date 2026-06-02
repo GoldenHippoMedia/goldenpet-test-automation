@@ -31,7 +31,10 @@
     "cartv3:order:loggedin-cart-cc:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-loggedin-cart-cc.spec.js --headed",
     "cartv3:order:loggedin-cart-paypal:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-loggedin-cart-paypal.spec.js --headed",
     "cartv3:order:loggedin-checkout-cc:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-loggedin-checkout-cc.spec.js --headed",
-    "cartv3:order:loggedin-checkout-paypal:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-loggedin-checkout-paypal.spec.js --headed"
+    "cartv3:order:loggedin-checkout-paypal:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-loggedin-checkout-paypal.spec.js --headed",
+
+    "cartv3:special-rules:country-selections:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/special-rules-drmarty-country-selections.spec.js --headed",
+    "cartv3:special-rules:country-selections:prod": "BRAND=drmarty ENVIRONMENT=prod npx playwright test tests/special-rules-drmarty-country-selections.spec.js --headed"
   },
   "repository": {
     "type": "git",
