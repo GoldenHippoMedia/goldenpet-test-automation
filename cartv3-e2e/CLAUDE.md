@@ -604,9 +604,17 @@ use them.
   `waitForResponse` on the app's `/proxy/` API. (Status only — unlike the Pets
   tests we don't assert request/response body schema; the card token payload
   isn't a meaningful contract to pin here.)
-- **Save endpoint not yet pinned:** the backend save is a client-side POST under
-  the app's `/proxy/` API; `addCard()` matches `POST …/proxy/…` and logs the exact
-  URL — pin the predicate after the first headed run.
+- **Backend endpoints (pinned, verified 2026-06-03):**
+  - Add: `POST /payment-service/proxy/turnstile/braintree/client/payment-option` → 200
+  - Delete: `DELETE /account-service/proxy/payment-options/{accountId}/{token}` → 200
+  - The test asserts each call's status (<300) via `waitForResponse` on these.
+- **Toast wording quirk — the element retains its LAST message after dismissing.**
+  Add shows "Your payment method has been added successfully."; remove shows
+  "Successfully removed payment option." Because the add toast can still be lingering in the
+  `<standard-toast>` element when you delete, `confirmRemoveModal()` snapshots the
+  stale text first and `_captureToastText(timeout, ignoreText)` waits for the text
+  to CHANGE. The delete assertion requires REMOVAL wording (`/remov|delet/i`), NOT
+  generic "success" — else a stale "added successfully" toast would falsely pass.
 
 ### Order History (/order-history, live-verified)
 No `data-qa` on cards or buttons yet — TODO: flag to team. All selectors are class/text-based.

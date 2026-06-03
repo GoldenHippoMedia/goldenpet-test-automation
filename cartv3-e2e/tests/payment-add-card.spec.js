@@ -98,10 +98,12 @@ test.describe('Manage Payments - Add Credit Card', () => {
     expect(deleteResp, 'a backend delete call should fire on confirm').toBeTruthy();
     expect(deleteResp.status(), 'delete call should succeed').toBeLessThan(300);
 
-    // Green "successfully removed" toast (captured concurrently with the click).
+    // Green "successfully removed" toast (captured concurrently with the click,
+    // ignoring the lingering add toast). Require REMOVAL wording — not generic
+    // "success" — so a stale "added successfully" toast can't pass this.
     console.log(`[payment-add-card] toast after delete: ${deleteToast ? `"${deleteToast}"` : '(none surfaced)'}`);
     expect(deleteToast, 'a confirmation toast should appear after removing the card').toBeTruthy();
-    expect(deleteToast, 'delete toast should indicate success').toMatch(/remov|delet|success/i);
+    expect(deleteToast, 'delete toast should indicate REMOVAL (not the add toast)').toMatch(/remov|delet/i);
     expect(deleteToast, 'delete toast should not indicate an error').not.toMatch(/error|fail|invalid/i);
 
     // The card is gone from My Card(s).

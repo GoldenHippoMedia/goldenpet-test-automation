@@ -62,14 +62,22 @@ class PaymentDetailsPage extends BasePage {
    * caller should start this BEFORE the triggering click (it polls fast enough
    * to catch a multi-second toast). Returns the trimmed text, or null on timeout.
    */
-  async _captureToastText(timeout = 8000) {
+  async _captureToastText(timeout = 8000, ignoreText = null) {
     const start = Date.now();
     while (Date.now() - start < timeout) {
       const t = ((await this.toast.first().textContent().catch(() => '')) || '').trim();
-      if (t) return t;
+      // The toast element RETAINS its last message after dismissing, so a prior
+      // action's toast (e.g. the add toast) can still be present. Ignore it and
+      // wait for the text to change to this action's message.
+      if (t && t !== ignoreText) return t;
       await this.page.waitForTimeout(100);
     }
     return null;
+  }
+
+  /** Current toast text (may be a stale/lingering message), trimmed. */
+  async _currentToastText() {
+    return ((await this.toast.first().textContent().catch(() => '')) || '').trim();
   }
 
   /** Best-effort toast read for a just-performed action (e.g. add). */
@@ -181,7 +189,8 @@ class PaymentDetailsPage extends BasePage {
 
     const [response] = await Promise.all([
       this.page.waitForResponse(
-        r => /\/proxy\//.test(r.url()) && r.request().method() === 'POST',
+        r => r.request().method() === 'POST'
+          && /\/payment-service\/proxy\/.*payment-option/.test(r.url()),
         { timeout: 20000 }
       ),
       this.addCardBtn.click(),
@@ -215,10 +224,14 @@ class PaymentDetailsPage extends BasePage {
    * Returns { response, toastText } (either may be null if not observed).
    */
   async confirmRemoveModal() {
-    const toastP = this._captureToastText(8000);
+    // Snapshot any lingering toast text (e.g. the add toast) so we don't mistake
+    // it for the removal toast — capture waits for the text to CHANGE.
+    const staleToast = await this._currentToastText();
+    const toastP = this._captureToastText(8000, staleToast);
     const respP = this.page
       .waitForResponse(
-        r => /\/proxy\//.test(r.url()) && r.request().method() !== 'GET',
+        r => r.request().method() === 'DELETE'
+          && /\/account-service\/proxy\/payment-options\//.test(r.url()),
         { timeout: 20000 }
       )
       .catch(() => null);
