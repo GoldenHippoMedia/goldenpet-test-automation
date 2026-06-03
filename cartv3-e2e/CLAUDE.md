@@ -2,7 +2,7 @@
 
 This file is auto-loaded by Claude Code. Read it first before doing any work in this folder.
 
-> **Last verified:** 2026-05-26 — CartV3 suite migrated from gh-auto-funnel-tools. 19 of 40 GI tests ported. The 6-test Order Placement batch was brought over from the `feature/order-tests` branch (guest CC/PayPal, logged-in cart CC/PayPal, logged-in checkout CC/PayPal) — passing in the source repo, **pending verification here**. Tests live in `tests/` as `.spec.js` files. Requires `.env` with PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD for the PayPal tests.
+> **Last verified:** 2026-06-02 — Pet Profiles batch (3 GI ports + 1 new validation spec) added and **verified green here** (UAT, headed) — the first tests actually run & passing in this repo. Introduced `helpers/pet-profile-api.js` and `brand.testAccountId`. Prior context: CartV3 suite migrated from gh-auto-funnel-tools; 19 earlier tests + 6-test Order Placement batch are ported but **still pending verification here**. Tests live in `tests/` as `.spec.js` files. Requires `.env` with PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD for the PayPal tests, and `<BRAND>_<ENV>_ACCOUNT_ID` (or `data/site-config.json` → `testAccountIds`) for the Pet Profiles API setup.
 
 ---
 
@@ -71,7 +71,8 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
     │   └── brand.js             # custom Playwright fixture
     ├── helpers/
     │   ├── parse-money.js       # "$179.85" → 179.85, "Free" → 0, "TBD" → null
-    │   └── order-validations.js # reusable assertion functions for order tests
+    │   ├── order-validations.js # reusable assertion functions for order tests
+    │   └── pet-profile-api.js   # pets create/remove/list via API (page.evaluate fetch + CSRF headers)
     ├── pages/
     │   ├── base.page.js         # popup dismissal logic
     │   ├── login.page.js
@@ -81,7 +82,8 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
     │   ├── checkout.page.js
     │   ├── order-confirmation.page.js
     │   ├── account-details.page.js
-    │   └── my-account.page.js
+    │   ├── my-account.page.js
+    │   └── pets.page.js         # /pets + /pets/create + /pets/edit form & list
     └── tests/                   # flat — all CartV3 specs here, no CartV3/ subfolder
         ├── login.spec.js
         ├── header.spec.js
@@ -103,7 +105,11 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
         ├── order-loggedin-cart-paypal.spec.js
         ├── order-loggedin-checkout-cc.spec.js
         ├── order-loggedin-checkout-paypal.spec.js
-        └── thank-you-page.spec.js
+        ├── thank-you-page.spec.js
+        ├── pets-create-profile.spec.js            # ✅ verified green here
+        ├── pets-edit-profile.spec.js              # ✅ verified green here
+        ├── pets-remove-profile.spec.js            # ✅ verified green here
+        └── pets-create-profile-validation.spec.js # ✅ verified green here (no GI equivalent)
 ```
 
 ---
@@ -132,6 +138,14 @@ All 19 tests below were passing in `gh-auto-funnel-tools/Cartv3 tests/` before m
 - `order-loggedin-cart-paypal.spec.js` — Logged-in: PayPal button on the cart page; cart auto-submits after popup closes. UAT only. Skips `assertShippingThreshold` (logged-in free-shipping benefit). Tagged `@real-order`
 - `order-loggedin-checkout-cc.spec.js` — Logged-in: cart → /checkout (via shipping change link) → submit with saved CC. Skips `assertShippingThreshold`. Tagged `@real-order`
 - `order-loggedin-checkout-paypal.spec.js` — Logged-in: cart → /checkout → PayPal; /checkout auto-submits after popup closes. UAT only. Skips `assertShippingThreshold`. Tagged `@real-order`
+### ✅ Verified green here (UAT, headed)
+The Pet Profiles batch is the first set actually run and passing **in this repo**
+(not just the source repo). All four pass headed against UAT.
+
+- `pets-create-profile.spec.js` — GI: "Pet Profiles - Create New Profile". UI create with **randomized** inputs (type, sex, weight, health issues — logged each run for repro). Asserts request body, response body, and the /pets card all match every submitted field. API soft-delete teardown (`afterEach`).
+- `pets-edit-profile.spec.js` — GI: "Pet Profiles - Edit Existing Profile". **API setup** creates the profile (skips UI form for setup), then UI edits **every field** (name, sex flipped, weight, health issues — randomized). Asserts request + response bodies, preserved fields (breed/birthday/profileType not wiped), and the /pets card. Lands on `/pets/edit/{petId}`.
+- `pets-remove-profile.spec.js` — GI: "Pet Profiles - Remove Existing Profile". API setup; single consolidated test: opens the remove modal → asserts the modal copy renders the correct pet name → clicks "Contact Us" (asserts nav to `/contact`, non-destructive) → returns → confirms remove. Pins the soft-delete contract (`PUT {id, active:false}`, status 200) and asserts the card disappears.
+- `pets-create-profile-validation.spec.js` — NEW (no GI equivalent). Client-side validation on `/pets/create`: empty submit blocked (no POST, stays on page) with all five `"<Field> is required"` inline errors shown; breed-not-selected → `"Invalid value"`; valid form clears all errors. NOTE: Save is **always enabled** — the form blocks on click, it does not disable the button.
 
 ### Not yet ported (26 remaining)
 
@@ -160,10 +174,18 @@ Upsell / Downsell (3-4) — backlog after Order tests
 - [ ] upsell-decline-accept-downsell.spec.js
 - [ ] upsell-decline-all.spec.js
 
-Pet Profiles (3)
-- [ ] Pet Profiles - Create New Profile
-- [ ] Pet Profiles - Edit Existing Profile
-- [ ] Pet Profiles - Remove Existing Profile
+Pet Profiles — ✅ all ported AND verified green here (UAT, headed)
+All 3 GI Pet Profiles tests + a new validation spec are in `tests/` and passing.
+These tests pioneer a new pattern for this suite: **API assertions woven into
+UI E2E tests** (status, response shape, request body) backed by a new
+`helpers/pet-profile-api.js` for API setup/teardown. Key infrastructure and
+gotchas this batch introduced (see "Pet Profiles" gotchas section below):
+- `helpers/pet-profile-api.js` — create/remove/list via the backend, used for
+  fast test setup and `afterEach` cleanup.
+- `brand.testAccountId` (from `data/site-config.json` → `testAccountIds.<env>`,
+  overridable via `<BRAND>_<ENV>_ACCOUNT_ID` env var) — Salesforce account ID
+  needed for the account-scoped pets API.
+- npm scripts: `cartv3:pets:{all,create,edit,remove,validation}:uat`.
 
 Profile & Settings (3)
 - [ ] Update Customer Information fields under Manage Account
@@ -397,6 +419,71 @@ npm run report
 ### 14. Empty cart bug on UAT
 - Removing all products shows nothing (no "empty" message) — prod shows it correctly
 - `isCartEmpty()` returns false on UAT even when empty; test against prod or check `productName.count() === 0`
+
+### 15. Pet Profiles (/pets) — gotchas from the migration
+- **Angular whitespace breaks anchored text matches (recurring!).** `/pets` renders
+  text with surrounding whitespace + comment nodes: pet-name divs, the `REMOVE` /
+  `Contact Us` buttons, and the health-issue tiles all have padded text like
+  `" REMOVE "`. An anchored regex (`/^REMOVE$/`) matches NOTHING and the locator
+  hangs until timeout. Fix: use substring `hasText: 'REMOVE'` OR XPath
+  `normalize-space()="..."`. `PetsPage.profileCard()` and `selectHealthIssue()`
+  use the normalize-space XPath pattern; `removeButton`/`contactUsBtn` use substring.
+- **API calls must go through the browser, not `page.request`.** Cloudflare bot
+  protection 403s the Playwright APIRequestContext (different TLS fingerprint).
+  `helpers/pet-profile-api.js` runs `fetch()` inside `page.evaluate()` so calls
+  inherit the browser's trusted session.
+- **The pets API needs custom headers.** Without them you get `419`. The Angular
+  HttpClient interceptor adds: `x-csrf-token` (= `gh-token` cookie value),
+  `x-sid` (= `SessionId` cookie value), `x-locale: US`, `x-language: en`. The
+  helper reads those cookies in page context and replays them.
+- **Remove is a SOFT delete.** UI "Remove" and the helper both do
+  `PUT {id, active:false}` — no hard DELETE endpoint exists. The `/pets` list
+  filters by `active`, so it looks clean, but inactive records persist in
+  Salesforce forever. Per-test `afterEach` cleanup keeps the visible list clean;
+  it does NOT purge the DB. A true purge is a backend/Salesforce admin task.
+- **Create form moved to its own route** `/pets/create` (not a modal); edit is
+  `/pets/edit/{petId}` (title "Edit Pet Profile"). After Save, the app
+  auto-redirects to `/pets` — don't manually reload, just `waitForURL(/\/pets$/)`.
+- **Breed is a Material autocomplete.** Typing alone yields "Invalid value" — you
+  must type then commit via ArrowDown+Enter. Enter ALSO submits the form, so the
+  create flow types breed last and wraps the commit in
+  `Promise.all([waitForResponse, commitBreedAndSubmit()])`.
+- **`healthConditions` quirks:** the API returns them **sorted alphabetically**
+  (UI sends click-order) and returns **`null` (not `[]`)** when none selected.
+  Assert response-side as a sorted set and coalesce `null` → `[]`.
+- **Save is always enabled** on the create/edit form — validation blocks on click
+  and renders inline `"<Field> is required"` errors; it does NOT disable Save.
+- **Birthday is now required** (was optional in the GI era).
+
+### Pet Profiles API endpoints (account-scoped)
+| Operation | Method + URL | Body |
+|-----------|--------------|------|
+| Create | `POST /account-service/proxy/pets/profile/{accountId}` | `{name, profileType, sex, breed, birthday, weight:{current,ideal,category}, healthConditions[]}` |
+| Edit | `PUT /account-service/proxy/pets/profile/{petId}` | full profile + `id` |
+| Remove (soft) | `PUT /account-service/proxy/pets/profile/{petId}` | `{id, active:false}` |
+| List (active) | `GET /account-service/proxy/pets/all/{accountId}` | — |
+
+`{accountId}` = `brand.testAccountId` (Salesforce `001*`); `{petId}` = `a1D*`, returned in create/list responses.
+
+### Pet Profiles selectors (/pets, live-verified)
+| What | Selector |
+|------|----------|
+| Add/Add-another button | `button:has-text("Add a pet profile"), button:has-text("Add another pet")` (no data-qa) |
+| Name input | `[data-qa="profile-name"]` |
+| Type radios | `input[type=radio][value="Dog"|"Cat"]` (no data-qa) |
+| Sex radios | `input[type=radio][value="Male"|"Female"]` (no data-qa) |
+| Breed (autocomplete) | `[data-qa="breed"]` |
+| Birthday | `[data-qa="birthday"]` |
+| Weight | `[data-qa="current-weight"]` |
+| Health-issue tiles | `section.grid > div.cursor-pointer` (divs, not buttons; padded text) |
+| No-health-issues | `button:has-text("No health issues")` |
+| Save | `[data-qa="save-btn"]` |
+| Profile card (by name) | XPath `//div[contains(@class,"text-2xl") and normalize-space()="{name}"]` → ancestor card |
+| Card edit (pencil) | `button.absolute.top-3.right-3` (within card) |
+| Card REMOVE | `button:has-text("REMOVE")` (within card) |
+| Remove confirm | `button:has-text("Yes, Please Remove")` |
+| Remove modal Contact Us | `button:has-text("Contact Us")` → navigates to `/contact` |
+| Card list has NO data-qa | TODO: flag to team to add data-qa on cards/buttons |
 
 ---
 

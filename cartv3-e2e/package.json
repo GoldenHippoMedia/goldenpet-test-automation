@@ -31,7 +31,12 @@
     "cartv3:order:loggedin-cart-cc:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-loggedin-cart-cc.spec.js --headed",
     "cartv3:order:loggedin-cart-paypal:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-loggedin-cart-paypal.spec.js --headed",
     "cartv3:order:loggedin-checkout-cc:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-loggedin-checkout-cc.spec.js --headed",
-    "cartv3:order:loggedin-checkout-paypal:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-loggedin-checkout-paypal.spec.js --headed"
+    "cartv3:order:loggedin-checkout-paypal:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/order-loggedin-checkout-paypal.spec.js --headed",
+    "cartv3:pets:all:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/pets-*.spec.js --headed",
+    "cartv3:pets:create:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/pets-create-profile.spec.js --headed",
+    "cartv3:pets:edit:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/pets-edit-profile.spec.js --headed",
+    "cartv3:pets:remove:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/pets-remove-profile.spec.js --headed",
+    "cartv3:pets:validation:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/pets-create-profile-validation.spec.js --headed"
   },
   "repository": {
     "type": "git",
