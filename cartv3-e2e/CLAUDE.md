@@ -2,7 +2,7 @@
 
 This file is auto-loaded by Claude Code. Read it first before doing any work in this folder.
 
-> **Last verified:** 2026-06-02 — Pet Profiles batch (3 GI ports + 1 new validation spec) added and **verified green here** (UAT, headed) — the first tests actually run & passing in this repo. Introduced `helpers/pet-profile-api.js` and `brand.testAccountId`. Prior context: CartV3 suite migrated from gh-auto-funnel-tools; 19 earlier tests + 6-test Order Placement batch are ported but **still pending verification here**. Tests live in `tests/` as `.spec.js` files. Requires `.env` with PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD for the PayPal tests, and `<BRAND>_<ENV>_ACCOUNT_ID` (or `data/site-config.json` → `testAccountIds`) for the Pet Profiles API setup.
+> **Last verified:** 2026-06-03 — Order History port (`order-loggedin-list-reorder.spec.js`) added and **verified green here** (UAT, headed). Comprehensive `/order-history` test: list smoke, per-card validation (date / payment method / math / image render), pagination, Buy It Again (product-identity round-trip to PDP), Re-Order All (product-identity round-trip to /cart), `afterEach` cart cleanup. Adds `pages/order-history.page.js`. Prior context: Pet Profiles batch (4 specs) verified green 2026-06-02; CartV3 suite migrated from gh-auto-funnel-tools; 19 earlier tests + 6-test Order Placement batch are ported but **still pending verification here**. Tests live in `tests/` as `.spec.js` files. Requires `.env` with PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD for the PayPal tests, and `<BRAND>_<ENV>_ACCOUNT_ID` (or `data/site-config.json` → `testAccountIds`) for the Pet Profiles API setup.
 
 ---
 
@@ -83,6 +83,7 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
     │   ├── order-confirmation.page.js
     │   ├── account-details.page.js
     │   ├── my-account.page.js
+    │   ├── order-history.page.js # /order-history list + card snapshots
     │   └── pets.page.js         # /pets + /pets/create + /pets/edit form & list
     └── tests/                   # flat — all CartV3 specs here, no CartV3/ subfolder
         ├── login.spec.js
@@ -106,6 +107,7 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
         ├── order-loggedin-checkout-cc.spec.js
         ├── order-loggedin-checkout-paypal.spec.js
         ├── thank-you-page.spec.js
+        ├── order-loggedin-list-reorder.spec.js    # Order History list + Buy It Again + Re-Order All
         ├── pets-create-profile.spec.js            # ✅ verified green here
         ├── pets-edit-profile.spec.js              # ✅ verified green here
         ├── pets-remove-profile.spec.js            # ✅ verified green here
@@ -139,13 +141,39 @@ All 19 tests below were passing in `gh-auto-funnel-tools/Cartv3 tests/` before m
 - `order-loggedin-checkout-cc.spec.js` — Logged-in: cart → /checkout (via shipping change link) → submit with saved CC. Skips `assertShippingThreshold`. Tagged `@real-order`
 - `order-loggedin-checkout-paypal.spec.js` — Logged-in: cart → /checkout → PayPal; /checkout auto-submits after popup closes. UAT only. Skips `assertShippingThreshold`. Tagged `@real-order`
 ### ✅ Verified green here (UAT, headed)
-The Pet Profiles batch is the first set actually run and passing **in this repo**
-(not just the source repo). All four pass headed against UAT.
+Tests below are run and passing **in this repo** (not just the source repo).
 
+Pet Profiles batch (first set verified here, 2026-06-02):
 - `pets-create-profile.spec.js` — GI: "Pet Profiles - Create New Profile". UI create with **randomized** inputs (type, sex, weight, health issues — logged each run for repro). Asserts request body, response body, and the /pets card all match every submitted field. API soft-delete teardown (`afterEach`).
 - `pets-edit-profile.spec.js` — GI: "Pet Profiles - Edit Existing Profile". **API setup** creates the profile (skips UI form for setup), then UI edits **every field** (name, sex flipped, weight, health issues — randomized). Asserts request + response bodies, preserved fields (breed/birthday/profileType not wiped), and the /pets card. Lands on `/pets/edit/{petId}`.
 - `pets-remove-profile.spec.js` — GI: "Pet Profiles - Remove Existing Profile". API setup; single consolidated test: opens the remove modal → asserts the modal copy renders the correct pet name → clicks "Contact Us" (asserts nav to `/contact`, non-destructive) → returns → confirms remove. Pins the soft-delete contract (`PUT {id, active:false}`, status 200) and asserts the card disappears.
 - `pets-create-profile-validation.spec.js` — NEW (no GI equivalent). Client-side validation on `/pets/create`: empty submit blocked (no POST, stays on page) with all five `"<Field> is required"` inline errors shown; breed-not-selected → `"Invalid value"`; valid form clears all errors. NOTE: Save is **always enabled** — the form blocks on click, it does not disable the button.
+
+Order History (verified 2026-06-03):
+- `order-loggedin-list-reorder.spec.js` — GI: "Order-list - List, Buy-It-Again, Re-Order".
+  Comprehensive `/order-history` test. GI source has only 3 thin asserts; this port
+  extends to 5 sections:
+  1. **List smoke** — heading visible, ≥1 ORD- visible, first ID matches `/^ORD-\d{6,9}$/`.
+  2. **Per-card validation** — loops every visible card on page 1 and asserts: date
+     format `MM/DD/YYYY`, payment method matches `/^(Card Ending in \d{4}|PayPal)$/`,
+     math `total ≈ subtotal + tax + shipping` via `assertMoneyMath` (CAD ` CAD` suffix
+     stripped before parsing), every product image rendered (`naturalWidth > 0`,
+     non-empty `alt`).
+  3. **Pagination smoke** — if a next-page button exists, click it and assert the first
+     visible ORD-id changes; otherwise log-and-skip that section.
+  4. **Buy It Again** — picks the **first order's first product row** (deterministic +
+     property-based, not random), snapshots its product name, scopes the click to that
+     row's button, asserts PDP URL matches `/\/product\//` and the PDP `h1.product-name`
+     shares ≥1 significant word with the order row's product name (PDP shows a short
+     form like "ProPower Plus" vs the order row's "Dr. Marty ProPower Plus - 3 Jars").
+  5. **Re-Order All** — picks the **first card on page 1 with a Re-Order All button**
+     (per product knowledge: only multi-product 2+ orders expose it). Paginates once
+     if absent on page 1; `test.skip()` only if truly absent everywhere. Snapshots all
+     the card's products, clicks the button, asserts `/cart` is populated with a
+     matching row count, and each product matches by name (loose word match), exact
+     quantity, and price (cart may show unit OR line total — test accepts either).
+  `afterEach` calls `cartPage.clearCart()` so Re-Order All doesn't leave items lying
+  around on the shared test account for subsequent runs.
 
 ### Not yet ported (26 remaining)
 
@@ -166,8 +194,7 @@ Order Placement — ✅ all ported (pending verification here)
 All 6 order placement tests are now in `tests/` (4 ported from the feature/order-tests
 branch + guest-cc + the renamed loggedin-cart-cc). See the "needs verification here" list above.
 
-Order History (1 remaining)
-- [ ] order-loggedin-list-reorder.spec.js — Order History page: verify list, "Buy It Again", "Re-Order". NOT an order placement test — exercises My Account → Order History UI.
+Order History — ✅ all ported AND verified green here (UAT, headed). See "Verified green here" above.
 
 Upsell / Downsell (3-4) — backlog after Order tests
 - [ ] upsell-accept-first.spec.js
@@ -484,6 +511,48 @@ npm run report
 | Remove confirm | `button:has-text("Yes, Please Remove")` |
 | Remove modal Contact Us | `button:has-text("Contact Us")` → navigates to `/contact` |
 | Card list has NO data-qa | TODO: flag to team to add data-qa on cards/buttons |
+
+### Order History (/order-history, live-verified)
+No `data-qa` on cards or buttons yet — TODO: flag to team. All selectors are class/text-based.
+
+| What | Selector |
+|------|----------|
+| Page heading | `getByText('Order History')` (h6 — not getByRole) |
+| Order card (one per order) | `ul.orders__rowWrap` — **NOT** `article.orders__container` (that's a single page-level wrapper around ALL orders, easy mistake) |
+| Order # (per card) | `<b>` containing `/ORD-\d+/` |
+| Product row (per card) | `div.inline-flex.flex-col.md:flex-row` |
+| Product name (per row) | `<b>` (e.g. "Dr. Marty Nature's Feast - 1 Bag") |
+| Product price (per row) | `<p>` matching `/^\$[\d,.]+/` — **LINE TOTAL** (price × qty), not unit |
+| Quantity (per row) | `<p>` matching `/Quantity:\s*\d+/` |
+| Product image (per row) | `<img>` with `src` + `alt` (cdn.drmartypets.com/images/retail/...) |
+| Buy It Again button | `button` hasText `/buy it again/i` (page text is "Buy it Again!" — note lowercase "it") |
+| Re-Order All button | `button` hasText `/re-?order all/i` — only on **multi-product (2+) orders** |
+| Next page | `button[aria-label="Click to go to next page"]` |
+| Card date | `<p>` matching `/^\d{2}\/\d{2}\/\d{4}$/` (e.g. "06/02/2026") |
+| Card payment method | `<p>` after the "Payment Method" label; matches `/^(Card Ending in \d{4}\|PayPal)$/` |
+| Card totals | `<p>` text like `"Total $107.01"`, `"Subtotal $97.50"`, `"Sales Tax $9.51"`, `"Shipping $0.00"`. CAD orders include ` CAD` suffix and a `(w/GST)` qualifier on Total — strip both before `parseMoney` |
+
+### PDP (Product Detail Page) — live-verified
+
+| What | Selector |
+|------|----------|
+| Product title | `h1.product-name` (short form, e.g. "ProPower Plus" — NOT the full catalog name) |
+| Add to Cart | text `/add to cart/i` (no data-qa yet) |
+
+**Gotcha — price is LINE TOTAL, not unit price.** On `/order-history`, the displayed
+`$X.XX` next to each product is already `unitPrice × quantity`. Verified via
+ORD-000852984: "Nature's Feast - 1 Bag" shows `$59.90` Qty 2 (unit ≈ $29.95), and
+$59.90 + $49.95 (ProPower 1 Jar Qty 1) = $109.85 = $108.85 subtotal + $1 AUTOTEST1
+coupon. The `/cart` page may display unit OR line; the reorder test tolerates either.
+
+**Gotcha — Re-Order All mutates the shared account's cart server-side.** Use an
+`afterEach` hook to call `cartPage.clearCart()` so re-ordered items don't linger for
+subsequent runs / other contributors.
+
+**Gotcha — product names differ between order-history and cart (catalog naming).**
+Same product appears as "Dr. Marty Nature's Feast - 1 Bag" on `/order-history` but
+"Nature's Feast Fish and Poultry 12oz" in the cart. Use loose word-overlap matching
+(≥2 shared significant words), same approach as `assertProductNamesMatch`.
 
 ---
 
