@@ -2,7 +2,7 @@
 
 This file is auto-loaded by Claude Code. Read it first before doing any work in this folder.
 
-> **Last verified:** 2026-06-03 — Order History port (`order-loggedin-list-reorder.spec.js`) added and **verified green here** (UAT, headed). Comprehensive `/order-history` test: list smoke, per-card validation (date / payment method / math / image render), pagination, Buy It Again (product-identity round-trip to PDP), Re-Order All (product-identity round-trip to /cart), `afterEach` cart cleanup. Adds `pages/order-history.page.js`. Prior context: Pet Profiles batch (4 specs) verified green 2026-06-02; CartV3 suite migrated from gh-auto-funnel-tools; 19 earlier tests + 6-test Order Placement batch are ported but **still pending verification here**. Tests live in `tests/` as `.spec.js` files. Requires `.env` with PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD for the PayPal tests, and `<BRAND>_<ENV>_ACCOUNT_ID` (or `data/site-config.json` → `testAccountIds`) for the Pet Profiles API setup.
+> **Last verified:** 2026-06-03 — Manage Payments port (`payment-add-card.spec.js`) added and **verified green here** (UAT, headed). Add a CC via the Braintree hosted-field form on `/payment-details` → assert backend save POST (<300) + a new `**** 4242` row in My Card(s) → exercise the remove modal (NEVERMIND cancels non-destructively; YES removes) → assert backend delete call (<300) + the success toast + the row disappears. UAT-only (skips prod — don't submit/store cards on prod). Adds `pages/payment-details.page.js`, `brand.addCardTestCard` (4242 card), npm `cartv3:payments:add-card:uat`. Established a **mandatory data-qa audit step** before working any page (see "Selector strategy"). Earlier same day: Order History port (`order-loggedin-list-reorder.spec.js`) added and **verified green here** (UAT, headed). Comprehensive `/order-history` test: list smoke, per-card validation (date / payment method / math / image render), pagination, Buy It Again (product-identity round-trip to PDP), Re-Order All (product-identity round-trip to /cart), `afterEach` cart cleanup. Adds `pages/order-history.page.js`. Prior context: Pet Profiles batch (4 specs) verified green 2026-06-02; CartV3 suite migrated from gh-auto-funnel-tools; 19 earlier tests + 6-test Order Placement batch are ported but **still pending verification here**. Tests live in `tests/` as `.spec.js` files. Requires `.env` with PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD for the PayPal tests, and `<BRAND>_<ENV>_ACCOUNT_ID` (or `data/site-config.json` → `testAccountIds`) for the Pet Profiles API setup.
 
 ---
 
@@ -35,8 +35,33 @@ Playwright test automation for a **multi-brand e-commerce platform** (one codeba
 
 ### 3. Selector strategy: data-qa attributes are king
 - ALWAYS prefer `[data-qa="..."]` selectors. They're the most reliable and brand-agnostic.
-- Fall back to other stable selectors (id, role, text) only when `data-qa` doesn't exist yet.
+- Fall back to other stable selectors (id, role/aria, text) only when `data-qa` doesn't exist yet.
 - The team is adding `data-qa` to more elements — when you hit a missing one, note it as a TODO and use a fallback. Don't refactor the data-qa work yourself.
+
+#### MANDATORY: audit a page for data-qa BEFORE writing/changing its selectors
+Whenever you start work on a page (a new port, a new page object, or editing
+selectors on an existing one), FIRST enumerate the data-qa attributes that page
+actually exposes on the **live DOM**, and prefer them. The DOM drifts and the team
+keeps adding data-qa, so never assume from memory or from the GI JSON — verify.
+
+1. Open the page in the live browser (Chrome MCP if available; otherwise have the
+   user paste DOM). Trigger any dynamic regions you'll target (open the modal,
+   reveal the form, load the list) — data-qa on lazily-rendered elements only
+   appears once they're in the DOM.
+2. List every data-qa on the page (and re-list after opening a modal/section to
+   catch ones that appear dynamically):
+   ```js
+   [...new Set([...document.querySelectorAll('[data-qa]')].map(e => e.getAttribute('data-qa')))]
+   ```
+3. For each element you need, use its `[data-qa="..."]` if one exists. Only when an
+   element genuinely has none (confirm by inspecting THAT element's attributes, not
+   just a page-level scan) do you fall back to id → role/aria → stable text.
+4. Record every fallback you had to use as a `TODO: ask team to add data-qa …` in
+   this file's selector reference, so the gaps are visible and can be closed later.
+
+This is how the Manage Payments port was done — the audit confirmed `add-card-btn`,
+`card-list`, `card-details`, `delete-card-btn`, `toast-message` exist, and that the
+remove-modal confirm/cancel buttons do NOT (→ `aria-label` fallback + a logged TODO).
 
 ### 4. CommonJS, NOT ES modules or TypeScript
 - All test files use `require()` and `module.exports`
@@ -84,7 +109,8 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
     │   ├── account-details.page.js
     │   ├── my-account.page.js
     │   ├── order-history.page.js # /order-history list + card snapshots
-    │   └── pets.page.js         # /pets + /pets/create + /pets/edit form & list
+    │   ├── pets.page.js         # /pets + /pets/create + /pets/edit form & list
+    │   └── payment-details.page.js # /payment-details — add-card form + saved-card list
     └── tests/                   # flat — all CartV3 specs here, no CartV3/ subfolder
         ├── login.spec.js
         ├── header.spec.js
@@ -111,7 +137,8 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
         ├── pets-create-profile.spec.js            # ✅ verified green here
         ├── pets-edit-profile.spec.js              # ✅ verified green here
         ├── pets-remove-profile.spec.js            # ✅ verified green here
-        └── pets-create-profile-validation.spec.js # ✅ verified green here (no GI equivalent)
+        ├── pets-create-profile-validation.spec.js # ✅ verified green here (no GI equivalent)
+        └── payment-add-card.spec.js               # ✅ verified green here — Manage Payments add-card (UAT-only)
 ```
 
 ---
@@ -175,7 +202,7 @@ Order History (verified 2026-06-03):
   `afterEach` calls `cartPage.clearCart()` so Re-Order All doesn't leave items lying
   around on the shared test account for subsequent runs.
 
-### Not yet ported (26 remaining)
+### Not yet ported (25 remaining)
 
 Cart / Checkout (1)
 - [ ] CartCheckout - Verify Subscription Terms
@@ -219,8 +246,24 @@ Profile & Settings (3)
 - [ ] Update Shipping Address fields under Manage Account CAN
 - [ ] Update Shipping Address fields under Manage Account US
 
-Manage Payments (1)
-- [ ] Manage Payments - Add Credit Card
+Manage Payments — ✅ verified green here (UAT, headed, 2026-06-03)
+- `payment-add-card.spec.js` — GI: "Manage Payments - Add Credit Card (Mike)".
+  GI only *filled* the Braintree form (never saved/asserted — its own note: "the
+  test credit card is not actually saved on the user account"). This port makes it
+  a real test: add a card → assert it persisted via (a) the backend save POST
+  status, (b) a new `**** 4242` row in My Card(s) → then exercise the delete UI
+  on that card: the NEVERMIND modal button cancels non-destructively (card stays),
+  then confirm removes it and asserts the success toast + the row disappears.
+  `afterEach` self-heal removes any stray 4242 card as a safety net (net-zero on
+  the shared account). (Total-count assertions are avoided — the list windows ~49
+  rendered rows; the unique 4242 row is the reliable signal.)
+  Uses a distinct `4242` card (`brand.addCardTestCard`) — last-4 not already on
+  the account (all 4111/0005) — so the added row is uniquely findable for both
+  the assertion and cleanup. **UAT-only** (`test.skip` on prod): decodes GI's
+  `/-int|au./` gate as "the -int integration env, not international" (the brand is
+  CAN/USA-only; `au.` matched nothing) and avoids submitting/storing card details
+  on production. npm: `cartv3:payments:add-card:uat`. Adds
+  `pages/payment-details.page.js`.
 
 Special Rules (4)
 - [ ] DrMartyPets - Country Selections in Manage Account
@@ -271,7 +314,11 @@ npm run report
 3. Create the test file directly in `tests/` (flat — no per-suite subfolders) as a `.spec.js` file
 4. Import from fixtures using `require('../fixtures/brand')` — paths are relative to `tests/`
 5. Use existing page objects; add to them when needed (prefer extending over inlining locators)
-6. **Verify selectors against the live DOM** before assuming they work — DOM may have changed since GI tests were written
+6. **Audit the live DOM for data-qa FIRST, then verify selectors** — see "Selector
+   strategy: data-qa attributes are king → MANDATORY audit" above. Enumerate the
+   page's data-qa (including after opening modals/sections), prefer them, and only
+   fall back (id → role/aria → text) for elements that truly have none. Never trust
+   the GI JSON's selectors — the DOM drifts and the team keeps adding data-qa.
 7. CMS pages: URL checks only, no heading text. App pages: URL + content checks.
 8. Run with `--headed` against UAT, iterate on failures
 9. Update the Migration Status section above
@@ -512,6 +559,55 @@ npm run report
 | Remove modal Contact Us | `button:has-text("Contact Us")` → navigates to `/contact` |
 | Card list has NO data-qa | TODO: flag to team to add data-qa on cards/buttons |
 
+### Manage Payments (/payment-details, live-verified 2026-06-03)
+Clean `data-qa` hooks exist here. The CC form is **Braintree Hosted Fields with the
+SAME iframe titles as /checkout** — the GI source's `#cardType` select and
+non-iframe `#cardNumber`/`#expiration`/`#cvcCode` selectors are stale/gone; do not
+use them.
+
+| What | Selector |
+|------|----------|
+| Card Number iframe | `iframe[title="Secure Credit Card Frame - Credit Card Number"]` (same 4 iframes as /checkout) |
+| Cardholder Name iframe | `iframe[title="Secure Credit Card Frame - Cardholder Name"]` |
+| Expiration iframe | `iframe[title="Secure Credit Card Frame - Expiration Date"]` |
+| CVV iframe | `iframe[title="Secure Credit Card Frame - CVV"]` |
+| Add Card button | `[data-qa="add-card-btn"]` — **disabled until the form validates**; fill all fields first |
+| Saved-card row (one per method) | `[data-qa="card-list"]` |
+| Masked number (per row) | `[data-qa="card-details"]` — shows REAL last-4 (`4111…`→`**** **** **** 1111`) |
+| Remove button (per row) | `[data-qa="delete-card-btn"]` (renders as "delete_forever / Remove Card") |
+| Set-default radio | `button[aria-label="Set as default payment method"]` / `"Default payment method"` |
+| Remove-confirm modal — YES | `button[aria-label="Click to confirm remove payment method"]` ("YES, REMOVE THIS PAYMENT METHOD") |
+| Remove-confirm modal — cancel | `button[aria-label="Click to cancel remove payment method"]` ("NEVERMIND") |
+| Toast | `[data-qa="toast-message"]` (site-wide) — success toast on confirmed delete |
+
+- **Iframe fill:** identical to checkout — `pressSequentially()` (not `fill()`) and
+  strip `/` from the expiry. `PaymentDetailsPage.fillCreditCard()` mirrors
+  `CheckoutPage.fillCreditCard()`.
+- **The shared test account is heavily polluted** (~49 saved methods: many `1111`,
+  several PayPal tokens, one `0005`) — old test runs accumulate. The add-card test
+  uses a distinct `4242` card so its row is unique, and self-heals/cleans up by
+  last-4. Don't bulk-delete the pre-existing cards from a test.
+- **Delete-confirm modal:** clicking `delete-card-btn` opens a Material dialog
+  (`mat-dialog-container`) with "YES, REMOVE THIS PAYMENT METHOD" (confirm) and
+  "NEVERMIND" (cancel). **These two buttons have NO data-qa** (audited — only
+  `aria-label` + class), so they're targeted by `aria-label`. **TODO: ask the team
+  to add data-qa to the remove-modal confirm/cancel buttons.** NEVERMIND is
+  non-destructive (closes modal, card stays); confirm removes the card + fires a
+  success toast. The test exercises both paths on its own 4242 card.
+- **Toast is a `<standard-toast>` that's ALWAYS in the DOM and reports visible —
+  it's just EMPTY when idle** and fills with text only while a toast shows (then
+  empties). Don't gate on `isVisible()`; poll `[data-qa="toast-message"]` for
+  non-empty text, and start polling BEFORE the triggering click (toasts are
+  transient). `PaymentDetailsPage._captureToastText()` does this.
+- **API checks:** the add path asserts the save POST status (<300); the delete
+  path asserts the backend delete call status (<300) — both captured via
+  `waitForResponse` on the app's `/proxy/` API. (Status only — unlike the Pets
+  tests we don't assert request/response body schema; the card token payload
+  isn't a meaningful contract to pin here.)
+- **Save endpoint not yet pinned:** the backend save is a client-side POST under
+  the app's `/proxy/` API; `addCard()` matches `POST …/proxy/…` and logs the exact
+  URL — pin the predicate after the first headed run.
+
 ### Order History (/order-history, live-verified)
 No `data-qa` on cards or buttons yet — TODO: flag to team. All selectors are class/text-based.
 
@@ -640,5 +736,12 @@ Capture ideas here so they don't get lost. Don't action until the migration is d
 - **Product variant strategy refactor** — extend `brand.cartUrl()` (or add a sibling helper) to support variant pools / fallbacks per test, rather than each test hard-coding a single `productKey`. Driver: avoid Salesforce duplicate-order rejections on real-order tests and simplify per-test variant choice. Open questions to answer at refactor time: how often do dupes actually occur in CI, do all order tests need the same dodging strategy, and what other variant-related needs surfaced during the rest of the migration (e.g. subscription vs standard, price-tier targeting for shipping threshold).
 
 - **Logged-in /checkout with NEW credit card** — add `order-loggedin-checkout-newcc.spec.js` covering the path where a logged-in user clicks "Checkout with new card" on the cart (sibling of the saved-card flow in `order-loggedin-checkout-cc.spec.js`). Driver: the saved-card path uses the default card on file; the new-card path exercises the Braintree hosted-fields form, a different code path currently only covered by guest tests. No 1:1 GI source — new coverage. Use `cartPage.checkoutWithNewCardLink` to enter the flow; reuse `checkoutPage.fillCreditCard()` for the Braintree iframe inputs.
+
+- **Prod-safe add-card smoke (optional)** — `payment-add-card.spec.js` is UAT-only
+  because it submits/stores a card. If we ever want production coverage, add a
+  separate thin test that *fills* the Braintree form and asserts ADD CARD becomes
+  enabled but **never clicks it** (no submission, nothing stored). Reuses
+  `PaymentDetailsPage.fillCreditCard()` + the `addCardBtn` enabled check. Driver:
+  smoke the prod form renders/validates without touching the live account.
 
 - **Known catalog bug (Jira filed)** — Cart and Order Confirmation render different display names for the Tilly's Treasures variant ("Tilly's Treasure Beef Liver Treats" vs "Dr. Marty Tilly's Treasures - 1 Bag"). `assertProductNamesMatch` in `helpers/order-validations.js` is intentionally left strict so it keeps surfacing this mismatch — do NOT loosen the helper to make the test pass; the fix belongs in the catalog data.

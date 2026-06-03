@@ -7,6 +7,15 @@
       "postalCode": "91364"
     }
   },
+  "addCardTestCards": {
+    "uat": {
+      "number": "4242424242424242",
+      "name": "QA Tester",
+      "expiry": "12/30",
+      "cvv": "123",
+      "last4": "4242"
+    }
+  },
   "brands": {
     "drmarty": {
       "displayName": "Dr. Marty Pets",

@@ -37,7 +37,8 @@
     "cartv3:pets:create:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/pets-create-profile.spec.js --headed",
     "cartv3:pets:edit:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/pets-edit-profile.spec.js --headed",
     "cartv3:pets:remove:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/pets-remove-profile.spec.js --headed",
-    "cartv3:pets:validation:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/pets-create-profile-validation.spec.js --headed"
+    "cartv3:pets:validation:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/pets-create-profile-validation.spec.js --headed",
+    "cartv3:payments:add-card:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/payment-add-card.spec.js --headed"
   },
   "repository": {
     "type": "git",

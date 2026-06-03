@@ -87,6 +87,11 @@ const test = base.extend({
       content: brandConfig.content || {},
       testAddress: brandConfig.testAddress || {},
       testCard: siteConfig.testCards?.[env] || {},
+      // Distinct card used only by the Manage Payments "Add Credit Card" test.
+      // last-4 "4242" is intentionally NOT one of the cards already saved on the
+      // shared test account (which are all 4111/0005), so the newly-added row is
+      // uniquely identifiable for assertion and cleanup.
+      addCardTestCard: siteConfig.addCardTestCards?.[env] || {},
       // Per-environment Salesforce account ID for the test user. Used by tests that
       // exercise account-scoped APIs (e.g. /pets API setup/teardown). Override in
       // .env with e.g. DRMARTY_UAT_ACCOUNT_ID=... if the shared test account changes.
