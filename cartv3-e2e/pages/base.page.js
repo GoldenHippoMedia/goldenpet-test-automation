@@ -16,9 +16,16 @@ class BasePage {
 
   // Closes marketing popups (Attentive SMS, Members-Only, TV Offer, etc.)
   // Call this after any navigation where popups may appear.
+  //
+  // Popup cleanup is BEST-EFFORT and must never fail a test. The target page can
+  // still be settling (Angular hydration / a client-side redirect) when we evaluate,
+  // which destroys the execution context mid-call ("Execution context was destroyed,
+  // most likely because of a navigation"). So we retry once after the page settles
+  // and otherwise swallow the error.
   async dismissPopupIfPresent() {
     await this.page.waitForTimeout(2000);
-    await this.page.evaluate(() => {
+
+    const cleanup = () => {
       // Remove ALL Attentive elements (overlay, creative iframe, and any containers)
       document.querySelectorAll('[id*="attentive"]').forEach(el => el.remove());
 
@@ -28,7 +35,25 @@ class BasePage {
 
       // Remove any other marketing modals/overlays with high z-index
       document.querySelectorAll('.modal-overlay, .popup-overlay').forEach(el => el.remove());
-    });
+    };
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await this.page.evaluate(cleanup);
+        break;
+      } catch (e) {
+        const navRace = /context was destroyed|execution context|navigation/i.test(e.message || '');
+        if (attempt === 0 && navRace) {
+          // Page navigated under us — let it settle, then try once more.
+          await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+          await this.page.waitForTimeout(1000);
+          continue;
+        }
+        // Best-effort: never fail the test on popup cleanup.
+        break;
+      }
+    }
+
     await this.page.waitForTimeout(500);
   }
 }

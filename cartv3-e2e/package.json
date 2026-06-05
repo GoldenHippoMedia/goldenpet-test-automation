@@ -38,7 +38,15 @@
     "cartv3:pets:edit:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/pets-edit-profile.spec.js --headed",
     "cartv3:pets:remove:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/pets-remove-profile.spec.js --headed",
     "cartv3:pets:validation:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/pets-create-profile-validation.spec.js --headed",
-    "cartv3:payments:add-card:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/payment-add-card.spec.js --headed"
+    "cartv3:payments:add-card:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/payment-add-card.spec.js --headed",
+    "cartv3:account:all:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/account-update-*.spec.js --headed",
+    "cartv3:account:customer-info:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/account-update-customer-info.spec.js --headed",
+    "cartv3:account:shipping:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/account-update-shipping-address.spec.js --headed",
+    "cartv3:account:shipping-us:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/account-update-shipping-address.spec.js --headed -g \"United States\"",
+    "cartv3:account:shipping-can:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/account-update-shipping-address.spec.js --headed -g \"Canada\"",
+    "cartv3:account:billing:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/account-update-billing-address.spec.js --headed",
+    "cartv3:account:billing-us:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/account-update-billing-address.spec.js --headed -g \"United States\"",
+    "cartv3:account:billing-can:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/account-update-billing-address.spec.js --headed -g \"Canada\""
   },
   "repository": {
     "type": "git",

@@ -2,7 +2,7 @@
 
 This file is auto-loaded by Claude Code. Read it first before doing any work in this folder.
 
-> **Last verified:** 2026-06-03 — Manage Payments port (`payment-add-card.spec.js`) added and **verified green here** (UAT, headed). Add a CC via the Braintree hosted-field form on `/payment-details` → assert backend save POST (<300) + a new `**** 4242` row in My Card(s) → exercise the remove modal (NEVERMIND cancels non-destructively; YES removes) → assert backend delete call (<300) + the success toast + the row disappears. UAT-only (skips prod — don't submit/store cards on prod). Adds `pages/payment-details.page.js`, `brand.addCardTestCard` (4242 card), npm `cartv3:payments:add-card:uat`. Established a **mandatory data-qa audit step** before working any page (see "Selector strategy"). Earlier same day: Order History port (`order-loggedin-list-reorder.spec.js`) added and **verified green here** (UAT, headed). Comprehensive `/order-history` test: list smoke, per-card validation (date / payment method / math / image render), pagination, Buy It Again (product-identity round-trip to PDP), Re-Order All (product-identity round-trip to /cart), `afterEach` cart cleanup. Adds `pages/order-history.page.js`. Prior context: Pet Profiles batch (4 specs) verified green 2026-06-02; CartV3 suite migrated from gh-auto-funnel-tools; 19 earlier tests + 6-test Order Placement batch are ported but **still pending verification here**. Tests live in `tests/` as `.spec.js` files. Requires `.env` with PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD for the PayPal tests, and `<BRAND>_<ENV>_ACCOUNT_ID` (or `data/site-config.json` → `testAccountIds`) for the Pet Profiles API setup.
+> **Last verified:** 2026-06-05 — Profile & Settings batch (`account-update-customer-info.spec.js`, `account-update-shipping-address.spec.js` [data-driven US + CAN], `account-update-billing-address.spec.js`) added and **verified green here** (UAT, headed, 6 tests). All on `/account-details` ("Manage Account"). Each snapshots the account's current values and restores them (afterEach safety net) → required-field validation (empty field → inline error + Save disabled + no PUT) → mutate → assert the save `PUT /account-service/proxy/account/{id}` status + request body + "Successfully updated account" toast → reload round-trip. Shipping is data-driven from `data/shipping-address-cases.json` (one test per country; asserts the Country→State/Province dropdown swap). Billing (no GI source) exercises the "Different Billing Address" toggle and round-trips/cleans up via the backend `billingAddress` (the toggle state isn't persisted by the app). Extended `pages/account-details.page.js` (+`fetchAccount()`), hardened `pages/base.page.js` popup-dismiss against a navigation race, and added a `QA_UA_TOKEN`-driven Cloudflare bot-bypass User-Agent in `playwright.config.js` (DevOps allow-lists `DrMartyQA/<token>`; secret lives in `.env`). npm: `cartv3:account:{all,customer-info,shipping,shipping-us,shipping-can,billing}:uat`. Earlier same batch context: 2026-06-03 — Manage Payments port (`payment-add-card.spec.js`) added and **verified green here** (UAT, headed). Add a CC via the Braintree hosted-field form on `/payment-details` → assert backend save POST (<300) + a new `**** 4242` row in My Card(s) → exercise the remove modal (NEVERMIND cancels non-destructively; YES removes) → assert backend delete call (<300) + the success toast + the row disappears. UAT-only (skips prod — don't submit/store cards on prod). Adds `pages/payment-details.page.js`, `brand.addCardTestCard` (4242 card), npm `cartv3:payments:add-card:uat`. Established a **mandatory data-qa audit step** before working any page (see "Selector strategy"). Earlier same day: Order History port (`order-loggedin-list-reorder.spec.js`) added and **verified green here** (UAT, headed). Comprehensive `/order-history` test: list smoke, per-card validation (date / payment method / math / image render), pagination, Buy It Again (product-identity round-trip to PDP), Re-Order All (product-identity round-trip to /cart), `afterEach` cart cleanup. Adds `pages/order-history.page.js`. Prior context: Pet Profiles batch (4 specs) verified green 2026-06-02; CartV3 suite migrated from gh-auto-funnel-tools; 19 earlier tests + 6-test Order Placement batch are ported but **still pending verification here**. Tests live in `tests/` as `.spec.js` files. Requires `.env` with PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD for the PayPal tests, and `<BRAND>_<ENV>_ACCOUNT_ID` (or `data/site-config.json` → `testAccountIds`) for the Pet Profiles API setup.
 
 ---
 
@@ -88,6 +88,8 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
     ├── package.json             # cartv3:* npm scripts
     ├── data/
     │   ├── site-config.json     # brand URLs, paths, content strings, test address & card
+    │   ├── shipping-address-cases.json # data-driven country cases for the Manage Account shipping test
+    │   ├── billing-address-cases.json  # data-driven country cases for the Manage Account billing test
     │   └── products/
     │       ├── drmarty-uat.csv  # GI data source format
     │       ├── drmarty-prod.csv
@@ -138,7 +140,10 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
         ├── pets-edit-profile.spec.js              # ✅ verified green here
         ├── pets-remove-profile.spec.js            # ✅ verified green here
         ├── pets-create-profile-validation.spec.js # ✅ verified green here (no GI equivalent)
-        └── payment-add-card.spec.js               # ✅ verified green here — Manage Payments add-card (UAT-only)
+        ├── payment-add-card.spec.js               # ✅ verified green here — Manage Payments add-card (UAT-only)
+        ├── account-update-customer-info.spec.js   # ✅ verified green here — Manage Account customer info
+        ├── account-update-shipping-address.spec.js # ✅ verified green here — Manage Account shipping (data-driven US + CAN)
+        └── account-update-billing-address.spec.js  # ✅ verified green here — NEW (no GI) "Different Billing Address" toggle
 ```
 
 ---
@@ -202,7 +207,7 @@ Order History (verified 2026-06-03):
   `afterEach` calls `cartPage.clearCart()` so Re-Order All doesn't leave items lying
   around on the shared test account for subsequent runs.
 
-### Not yet ported (25 remaining)
+### Not yet ported (22 remaining)
 
 Cart / Checkout (1)
 - [ ] CartCheckout - Verify Subscription Terms
@@ -241,10 +246,33 @@ gotchas this batch introduced (see "Pet Profiles" gotchas section below):
   needed for the account-scoped pets API.
 - npm scripts: `cartv3:pets:{all,create,edit,remove,validation}:uat`.
 
-Profile & Settings (3)
-- [ ] Update Customer Information fields under Manage Account
-- [ ] Update Shipping Address fields under Manage Account CAN
-- [ ] Update Shipping Address fields under Manage Account US
+Profile & Settings — ✅ all ported AND verified green here (UAT, headed, 2026-06-05)
+- `account-update-customer-info.spec.js` — GI: "Update Customer Information fields
+  under Manage Account". Two tests: (1) snapshots originals → required + optional
+  field validation → **unsaved-edits-discarded-on-reload** check → updates
+  First/Last/Phone → asserts the save PUT status + request body + success toast →
+  backend GET round-trip + **cross-section integrity** (addresses untouched) → UI
+  reload round-trip → restores originals (afterEach safety net); (2) **special
+  characters** in name (accent/apostrophe/hyphen) round-trip verbatim through the
+  PUT + GET. Never touches the EMAIL field (login identity). Runs UAT + prod.
+- `account-update-shipping-address.spec.js` — GI: "Update Shipping Address fields
+  under Manage Account" (US + CAN). **Data-driven** from
+  `data/shipping-address-cases.json` (one `test()` per country; add a country = add
+  a JSON entry). Asserts the Country→State/Province dropdown swap (provinces present
+  / US states absent for CAN, and vice-versa), required-field validation, the save
+  PUT status + `shippingAddress` request body, success toast, and a reload
+  round-trip; restores the original address (critical: flips country back to US).
+  Shared parameterized page-object method (`setShippingAddress`) for both countries.
+  Runs UAT + prod. npm: `cartv3:account:shipping-{us,can}:uat` select via `-g`.
+- `account-update-billing-address.spec.js` — **NEW, no GI source** (found during the
+  audit). **Data-driven (US + CAN)** from `data/billing-address-cases.json`. Per
+  country: enables the "Different Billing Address" toggle, asserts the billing
+  Country→State/Province dropdown swap, billing required-field validation (empty
+  street → inline error + Save disabled), fills a billing address that DIFFERS from
+  shipping, asserts the save PUT carries a `billingAddress` block (matching every
+  field + differing from `shippingAddress`) and the success toast, then round-trips
+  + restores + self-heals **via the backend account GET** — NOT the toggle, whose
+  on/off state the app doesn't persist. npm: `cartv3:account:billing{,-us,-can}:uat`.
 
 Manage Payments — ✅ verified green here (UAT, headed, 2026-06-03)
 - `payment-add-card.spec.js` — GI: "Manage Payments - Add Credit Card (Mike)".
@@ -615,6 +643,96 @@ use them.
   stale text first and `_captureToastText(timeout, ignoreText)` waits for the text
   to CHANGE. The delete assertion requires REMOVAL wording (`/remov|delet/i`), NOT
   generic "success" — else a stale "added successfully" toast would falsely pass.
+
+### Manage Account (/account-details, live-verified 2026-06-04)
+The h1 is "Manage Account". Two editable sections, each revealed by clicking its own
+"Edit" link (swaps read-only `<p>`s for inputs). A SINGLE "SAVE ACCOUNT INFO" button
+(`save-btn`) persists BOTH sections at once. Form fields all have clean `data-qa`;
+the only gaps are the Edit links and the inline validation text.
+
+| What | Selector |
+|------|----------|
+| Customer Info section | `[data-qa="customer-info-form"]` |
+| Shipping Address section (editable) | `[data-qa="address-form"]` |
+| Shipping Address section (display wrapper) | `[data-qa="shipping-address-form"]` |
+| First name | `[data-qa="first-name"]` (input, id `customer-firstName`) |
+| Last name | `[data-qa="last-name"]` |
+| Phone | `[data-qa="phone"]` |
+| Email | `[data-qa="email"]` — **do NOT mutate (login identity)** |
+| Country | `[data-qa="ship-country-shipping"]` (`<select>`, value `US\|United States` / `CA\|Canada`) |
+| Street | `[data-qa="ship-street-address-shipping"]` |
+| Additional line | `[data-qa="ship-additional-address-line-shipping"]` |
+| City | `[data-qa="ship-city-shipping"]` |
+| State / Province | `[data-qa="ship-state-shipping"]` (`<select>`, value `CA\|California` / `BC\|British Columbia`) |
+| Zip / Postal | `[data-qa="ship-postal-code-shipping"]` |
+| "Different Billing Address" toggle | hidden checkbox `[data-qa="billing-address-toggle"]` — **click the wrapping `<label class="accountDetails__toggleControl">`, not the input** (it's opacity-0 / 0×0) |
+| Billing sub-form (when toggle on) | `[data-qa="billing-address-form"]` (a REUSED `<address-form>`; its inner `<section>` also has `data-qa="address-form"`, so TWO exist when billing is on) |
+| Billing fields | `[data-qa="ship-{country,street-address,additional-address-line,city,state,postal-code}-billing"]` — distinct `-billing` suffix, **no collision** with shipping |
+| Save (whole page) | `[data-qa="save-btn"]` ("SAVE ACCOUNT INFO") |
+| Toast | `[data-qa="toast-message"]` (site-wide) |
+| Section "Edit" link | `<p>` text "Edit" inside each section — **NO data-qa. TODO: ask team.** |
+| Inline validation error | `.invalid-message` ("This field is required") — **NO data-qa. TODO: ask team.** |
+
+- **Single shared Save persists everything** — one `PUT /account-service/proxy/account/{accountId}`
+  saves customer info AND shipping address together; the app then re-fetches
+  `GET /account-service/proxy/account?accountId={id}`. `{accountId}` = `brand.testAccountId`.
+- **Country↔State coupling:** changing `ship-country-shipping` repopulates the SAME
+  `ship-state-shipping` `<select>` (US 53 states ⇄ CA 14 provinces, auto-selecting
+  the first). `AccountDetailsPage.setShippingAddress()` waits for the target option
+  to exist (`_waitForStateOption`) before selecting. One method covers all countries.
+- **Select option value format `"<code>|<name>"`** maps to the backend split apart:
+  `shippingAddress.countryCode`/`country` and `.regionCode`/`region`. The shipping
+  test derives expected values by splitting on `|`.
+- **Validation is REQUIRED-FIELD ONLY:** clearing a required field shows the inline
+  `.invalid-message` "This field is required", **disables `save-btn`, and blocks the
+  PUT**. (Contrast the Pets form, where Save stays enabled and blocks on click.)
+  There is NO client-side postal/phone FORMAT validation — letters in zip / a short
+  phone are accepted by the form.
+- **Which fields are required (audit-confirmed 2026-06-05):**
+  - Customer Info: **First Name, Last Name** required; **Phone, Email OPTIONAL**
+    (clearing them does NOT block Save).
+  - Shipping: **Street, Zip/Postal** required; City, Additional, Country, State OPTIONAL.
+  - Billing: **Street, City, Zip/Postal** required; Additional, Country, State OPTIONAL.
+  - ⚠️ **Shipping and Billing differ on City** — the SAME reused `<address-form>`
+    treats City as optional for shipping but REQUIRED for billing. Verify per-instance;
+    don't assume they match. (Looks like a product inconsistency — candidate to flag.)
+  - The specs assert EACH required field individually (clear → inline error + Save
+    disabled → restore → Save re-enables) AND assert representative OPTIONAL text
+    fields stay non-blocking (clear → Save still enabled): Phone (customer),
+    City + Additional (shipping/billing).
+- **Cross-section integrity (regression guard):** one shared Save persists the whole
+  record, so each spec verifies (via the account GET) that editing one section does
+  NOT alter the others — a customer-info edit leaves shipping + billing addresses
+  unchanged; a shipping edit leaves the customer name unchanged; a billing edit
+  leaves the shipping address unchanged.
+- **API round-trip:** beyond the PUT status + request body, each spec re-fetches the
+  account via `fetchAccount()` (the backend GET) and asserts the change actually
+  persisted server-side (not just optimistic UI).
+- **Toast quirk (same as payments):** `[data-qa="toast-message"]` is always in the
+  DOM, empty when idle, and RETAINS its last message after dismissing. `save()`
+  snapshots the stale text and waits for the toast to CHANGE. Success copy is
+  "Successfully updated account" (also accept "...your profile has been updated").
+- **Backend endpoint (pinned, verified 2026-06-04):**
+  - Save: `PUT /account-service/proxy/account/{accountId}` → 200. Request body:
+    `{ firstName, lastName, phone, birthday, brand, id, shippingAddress: { line1,
+    line2, city, region, regionCode, country, countryCode, postalCode } }`.
+  - The tests assert the PUT status (<300) AND the request body (the persisted contract).
+- **"Different Billing Address" toggle:** OFF by default (billing == shipping). When
+  ON, the PUT body gains a `billingAddress` block (same shape as `shippingAddress`),
+  and the reused billing `<address-form>` uses `-billing`-suffixed input data-qa.
+  The backend PERSISTS a distinct `billingAddress` (verified via the account GET).
+  **Quirk — the toggle state is NOT persisted.** The account record has no "use
+  different billing" flag; the page ALWAYS loads with the toggle OFF, even when a
+  distinct `billingAddress` exists in the data (so a saved different billing isn't
+  re-surfaced — likely a UX bug, flagged to the team). Therefore the reliable
+  persistence/round-trip + cleanup contract is the **account GET's `billingAddress`**,
+  NOT the toggle's reload state — `account-update-billing-address.spec.js` and its
+  self-heal/`afterEach` key off `AccountDetailsPage.fetchAccount()`. The "clean"
+  state for the shared account is `billingAddress == shippingAddress`.
+- **`AccountDetailsPage.fetchAccount()`** — reads the persisted account record via
+  `GET /account-service/proxy/account?accountId={id}` run inside `page.evaluate`
+  (browser session inherits Cloudflare trust; same gotcha/pattern as
+  `helpers/pet-profile-api.js`). Used to assert persistence and to restore billing.
 
 ### Order History (/order-history, live-verified)
 No `data-qa` on cards or buttons yet — TODO: flag to team. All selectors are class/text-based.

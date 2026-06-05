@@ -1,0 +1,23 @@
+{
+  "_comment": "Data-driven cases for tests/account-update-billing-address.spec.js. Each key (except _comment) becomes its own Playwright test() — run one with -g \"<Country>\". To cover another country, add an entry; no test code changes. Addresses are REAL and intentionally DIFFERENT from the account's shipping address, so the app persists a distinct billingAddress (a billing == shipping save makes the app treat them as 'not different'). US reuses the Ghost Inspector source address (Canoga Park); CAN is a real landmark (Vancouver Convention Centre) since Ghost had no billing test. Select option values are \"<code>|<name>\" exactly as the live <select> exposes them; expectOptionPresent/Absent assert the billing Country->State/Province dropdown swap; zip uses that country's postal format. The form has no address-deliverability check (audit-confirmed), so these only need to be structurally valid + distinct from shipping.",
+  "United States": {
+    "country": "US|United States",
+    "street": "9371 Canoga Ave",
+    "additional": "# 235",
+    "city": "Canoga Park",
+    "state": "CA|California",
+    "zip": "91311",
+    "expectOptionPresent": "California",
+    "expectOptionAbsent": "British Columbia"
+  },
+  "Canada": {
+    "country": "CA|Canada",
+    "street": "1055 Canada Place",
+    "additional": "Suite 200",
+    "city": "Vancouver",
+    "state": "BC|British Columbia",
+    "zip": "V6C 0C3",
+    "expectOptionPresent": "British Columbia",
+    "expectOptionAbsent": "California"
+  }
+}

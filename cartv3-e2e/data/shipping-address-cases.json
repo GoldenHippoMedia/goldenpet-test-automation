@@ -1,0 +1,23 @@
+{
+  "_comment": "Data-driven cases for tests/account-update-shipping-address.spec.js. Each key (except _comment) becomes its own Playwright test() — run one with -g \"<Country>\". To cover another country, add an entry; no test code changes. Values: select option values are \"<code>|<name>\" exactly as the live <select> exposes them. expectOptionPresent / expectOptionAbsent assert the Country->State/Province dropdown swap. zip uses that country's postal format. Restore is automatic (the test snapshots the account's real values first, then writes them back).",
+  "United States": {
+    "country": "US|United States",
+    "street": "9371 Canoga Ave",
+    "additional": "# 235",
+    "city": "Canoga Park",
+    "state": "CA|California",
+    "zip": "91311",
+    "expectOptionPresent": "California",
+    "expectOptionAbsent": "British Columbia"
+  },
+  "Canada": {
+    "country": "CA|Canada",
+    "street": "8525 Sea Island Wy",
+    "additional": "# 711",
+    "city": "Richmond",
+    "state": "BC|British Columbia",
+    "zip": "V6V 2J3",
+    "expectOptionPresent": "British Columbia",
+    "expectOptionAbsent": "California"
+  }
+}
