@@ -54,6 +54,14 @@ class CartPage extends BasePage {
     // --- Coupon ---
     this.couponInput = page.locator('[data-qa="coupon-code"]');
     this.couponApply = page.locator('[data-qa="coupon-apply-btn"]');
+    // Fillable inner input — resolves whether data-qa is on the <input> itself or
+    // on a <gh-input> wrapper (checkout's coupon is a wrapper; cart's may be too).
+    this.couponCodeInput = page
+      .locator('[data-qa="coupon-code"] input')
+      .or(page.locator('input[data-qa="coupon-code"]'));
+
+    // --- Subscription terms (only when a subscription item is in the cart) ---
+    this.subscriptionTerms = page.locator('[data-qa="subscription-terms-text"]');
 
     // --- Toast Messages ---
     this.toastMessage = page.locator('[data-qa="toast-message"]');
@@ -156,6 +164,26 @@ class CartPage extends BasePage {
   async getQuantity() {
     const text = await this.quantityValue.first().textContent();
     return parseInt(text.trim(), 10);
+  }
+
+  /**
+   * Apply a coupon on /cart and capture the apply-coupon response + transient toast.
+   * Endpoint: POST /commerce-service/proxy/cart/apply-coupon (404 invalid / 200 valid).
+   * Returns { response, toastText }.
+   */
+  async applyCoupon(code) {
+    await this.couponCodeInput.first().fill(code);
+    await this.armToastCapture(); // arm BEFORE the click (toast is transient + retains last msg)
+    const respP = this.page.waitForResponse(
+      (r) => /\/commerce-service\/proxy\/cart\/apply-coupon/.test(r.url())
+        && r.request().method() === 'POST',
+      { timeout: 20000 }
+    );
+    await this.couponApply.click();
+    const response = await respP;
+    const toastText = await this.captureToast(/coupon not found|applying|discount|success|added|removed/i, 6000);
+    console.log(`[cart] apply-coupon "${code}" → status ${response.status()} toast="${toastText}"`);
+    return { response, toastText };
   }
 
   async isCartEmpty() {

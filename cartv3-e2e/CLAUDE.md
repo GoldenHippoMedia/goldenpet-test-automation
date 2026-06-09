@@ -2,7 +2,7 @@
 
 This file is auto-loaded by Claude Code. Read it first before doing any work in this folder.
 
-> **Last verified:** 2026-06-05 — Profile & Settings batch (`account-update-customer-info.spec.js`, `account-update-shipping-address.spec.js` [data-driven US + CAN], `account-update-billing-address.spec.js`) added and **verified green here** (UAT, headed, 6 tests). All on `/account-details` ("Manage Account"). Each snapshots the account's current values and restores them (afterEach safety net) → required-field validation (empty field → inline error + Save disabled + no PUT) → mutate → assert the save `PUT /account-service/proxy/account/{id}` status + request body + "Successfully updated account" toast → reload round-trip. Shipping is data-driven from `data/shipping-address-cases.json` (one test per country; asserts the Country→State/Province dropdown swap). Billing (no GI source) exercises the "Different Billing Address" toggle and round-trips/cleans up via the backend `billingAddress` (the toggle state isn't persisted by the app). Extended `pages/account-details.page.js` (+`fetchAccount()`), hardened `pages/base.page.js` popup-dismiss against a navigation race, and added a `QA_UA_TOKEN`-driven Cloudflare bot-bypass User-Agent in `playwright.config.js` (DevOps allow-lists `DrMartyQA/<token>`; secret lives in `.env`). npm: `cartv3:account:{all,customer-info,shipping,shipping-us,shipping-can,billing}:uat`. Earlier same batch context: 2026-06-03 — Manage Payments port (`payment-add-card.spec.js`) added and **verified green here** (UAT, headed). Add a CC via the Braintree hosted-field form on `/payment-details` → assert backend save POST (<300) + a new `**** 4242` row in My Card(s) → exercise the remove modal (NEVERMIND cancels non-destructively; YES removes) → assert backend delete call (<300) + the success toast + the row disappears. UAT-only (skips prod — don't submit/store cards on prod). Adds `pages/payment-details.page.js`, `brand.addCardTestCard` (4242 card), npm `cartv3:payments:add-card:uat`. Established a **mandatory data-qa audit step** before working any page (see "Selector strategy"). Earlier same day: Order History port (`order-loggedin-list-reorder.spec.js`) added and **verified green here** (UAT, headed). Comprehensive `/order-history` test: list smoke, per-card validation (date / payment method / math / image render), pagination, Buy It Again (product-identity round-trip to PDP), Re-Order All (product-identity round-trip to /cart), `afterEach` cart cleanup. Adds `pages/order-history.page.js`. Prior context: Pet Profiles batch (4 specs) verified green 2026-06-02; CartV3 suite migrated from gh-auto-funnel-tools; 19 earlier tests + 6-test Order Placement batch are ported but **still pending verification here**. Tests live in `tests/` as `.spec.js` files. Requires `.env` with PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD for the PayPal tests, and `<BRAND>_<ENV>_ACCOUNT_ID` (or `data/site-config.json` → `testAccountIds`) for the Pet Profiles API setup.
+> **Last verified:** 2026-06-08 — Checkout batch (6 specs: `checkout-subscription-terms`, `checkout-coupon-validation`, `checkout-form-validation`, `checkout-header-display`, `checkout-country-state`, `checkout-prepopulate`) added and **verified green here** (UAT, headed). Ports the 8 Checkout-V2 + 1 Cart/Checkout GI tests → 6 specs ("Footer Links Check" dropped as redundant with `cart-terms-and-privacy-links.spec.js`). Read-only (no orders) → out of `@real-order`. Key audit findings (see "Checkout Page (/checkout)" reference): /checkout form fields now have clean `data-qa` (shipping uses `--shipping` suffix, billing `-`); checkout is STRICTER than /account-details (Email + City required); coupon `apply-coupon` → 404 invalid / 200 valid + "Coupon not found" toast (observer-based capture — toast retains last msg); inline validation errors are `.invalid-message` scoped to the section (input sits in a nested fieldset); subscription terms (`[data-qa="subscription-terms-text"]`) render on /cart + /checkout with all disclosure links verified by destination. Two values hardcoded to Dr.Marty (coupon `AUTOTEST1`, CS-hours) — see Backlog "Brand-portability of the checkout specs". Extended `pages/checkout.page.js` + `pages/cart.page.js` + `pages/base.page.js` (observer-based toast capture); added `data/checkout-country-cases.json` + `data/checkout-field-validation.json`; npm `cartv3:checkout:{all,subscription-terms,coupon,form-validation,header,country-state,country-us,country-can,prepopulate}:uat`. Prior: 2026-06-05 — Profile & Settings batch (`account-update-customer-info.spec.js`, `account-update-shipping-address.spec.js` [data-driven US + CAN], `account-update-billing-address.spec.js`) added and **verified green here** (UAT, headed, 6 tests). All on `/account-details` ("Manage Account"). Each snapshots the account's current values and restores them (afterEach safety net) → required-field validation (empty field → inline error + Save disabled + no PUT) → mutate → assert the save `PUT /account-service/proxy/account/{id}` status + request body + "Successfully updated account" toast → reload round-trip. Shipping is data-driven from `data/shipping-address-cases.json` (one test per country; asserts the Country→State/Province dropdown swap). Billing (no GI source) exercises the "Different Billing Address" toggle and round-trips/cleans up via the backend `billingAddress` (the toggle state isn't persisted by the app). Extended `pages/account-details.page.js` (+`fetchAccount()`), hardened `pages/base.page.js` popup-dismiss against a navigation race, and added a `QA_UA_TOKEN`-driven Cloudflare bot-bypass User-Agent in `playwright.config.js` (DevOps allow-lists `DrMartyQA/<token>`; secret lives in `.env`). npm: `cartv3:account:{all,customer-info,shipping,shipping-us,shipping-can,billing}:uat`. Earlier same batch context: 2026-06-03 — Manage Payments port (`payment-add-card.spec.js`) added and **verified green here** (UAT, headed). Add a CC via the Braintree hosted-field form on `/payment-details` → assert backend save POST (<300) + a new `**** 4242` row in My Card(s) → exercise the remove modal (NEVERMIND cancels non-destructively; YES removes) → assert backend delete call (<300) + the success toast + the row disappears. UAT-only (skips prod — don't submit/store cards on prod). Adds `pages/payment-details.page.js`, `brand.addCardTestCard` (4242 card), npm `cartv3:payments:add-card:uat`. Established a **mandatory data-qa audit step** before working any page (see "Selector strategy"). Earlier same day: Order History port (`order-loggedin-list-reorder.spec.js`) added and **verified green here** (UAT, headed). Comprehensive `/order-history` test: list smoke, per-card validation (date / payment method / math / image render), pagination, Buy It Again (product-identity round-trip to PDP), Re-Order All (product-identity round-trip to /cart), `afterEach` cart cleanup. Adds `pages/order-history.page.js`. Prior context: Pet Profiles batch (4 specs) verified green 2026-06-02; CartV3 suite migrated from gh-auto-funnel-tools; 19 earlier tests + 6-test Order Placement batch are ported but **still pending verification here**. Tests live in `tests/` as `.spec.js` files. Requires `.env` with PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD for the PayPal tests, and `<BRAND>_<ENV>_ACCOUNT_ID` (or `data/site-config.json` → `testAccountIds`) for the Pet Profiles API setup.
 
 ---
 
@@ -90,6 +90,8 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
     │   ├── site-config.json     # brand URLs, paths, content strings, test address & card
     │   ├── shipping-address-cases.json # data-driven country cases for the Manage Account shipping test
     │   ├── billing-address-cases.json  # data-driven country cases for the Manage Account billing test
+    │   ├── checkout-country-cases.json # data-driven US/CAN cases for the /checkout country-state test
+    │   ├── checkout-field-validation.json # per-field required/format map for the /checkout form-validation test
     │   └── products/
     │       ├── drmarty-uat.csv  # GI data source format
     │       ├── drmarty-prod.csv
@@ -143,7 +145,13 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
         ├── payment-add-card.spec.js               # ✅ verified green here — Manage Payments add-card (UAT-only)
         ├── account-update-customer-info.spec.js   # ✅ verified green here — Manage Account customer info
         ├── account-update-shipping-address.spec.js # ✅ verified green here — Manage Account shipping (data-driven US + CAN)
-        └── account-update-billing-address.spec.js  # ✅ verified green here — NEW (no GI) "Different Billing Address" toggle
+        ├── account-update-billing-address.spec.js  # ✅ verified green here — NEW (no GI) "Different Billing Address" toggle
+        ├── checkout-subscription-terms.spec.js      # ✅ verified green here — sub terms + all disclosure links on /cart + /checkout (logged-in)
+        ├── checkout-coupon-validation.spec.js       # ✅ verified green here — valid+invalid coupon on /cart + /checkout (guest)
+        ├── checkout-form-validation.spec.js         # ✅ verified green here — customer/shipping/billing per-field format+required (guest)
+        ├── checkout-header-display.spec.js          # ✅ verified green here — logo/phone/CS-hours (guest)
+        ├── checkout-country-state.spec.js           # ✅ verified green here — US/CAN country→state + intl zip (guest, data-driven)
+        └── checkout-prepopulate.spec.js             # ✅ verified green here — logged-in customer+shipping pre-populate
 ```
 
 ---
@@ -207,20 +215,64 @@ Order History (verified 2026-06-03):
   `afterEach` calls `cartPage.clearCart()` so Re-Order All doesn't leave items lying
   around on the shared test account for subsequent runs.
 
-### Not yet ported (22 remaining)
+### Checkout batch — ✅ all ported AND verified green here (UAT, headed, 2026-06-08)
 
-Cart / Checkout (1)
-- [ ] CartCheckout - Verify Subscription Terms
+The Cart/Checkout + Checkout-V2 display/validation/pre-populate tests are ported as
+**6 specs** (9 GI tests → 6, one absorbed as redundant) and **verified green in this
+repo** (UAT, headed). All are read-only (no orders submitted) → out of `@real-order`.
+Live `data/data-qa` audit done 2026-06-08 (see the "Checkout Page (/checkout)" selector
+reference below).
 
-Checkout-V2 (8)
-- [ ] Coupon Validation
-- [ ] Customer Information Form Validation
-- [ ] Footer Links Check
-- [ ] International Zipcode
-- [ ] Logged-In - Customer Data Pre-Populates
-- [ ] Shipping Address & Zip Form Validation
-- [ ] Validate Each Country's State Dropdowns
-- [ ] Validate Phone Number, CS Hours and Header Logo
+- `checkout-subscription-terms.spec.js` — GI: "CartCheckout - Verify Subscription
+  Terms". Logged-in; sub product (`loggedin_sub_2`) → terms render on **/cart AND
+  /checkout** via `[data-qa="subscription-terms-text"]` (3 links, **no checkbox** —
+  copy changed to "By clicking Submit Order…"). Also **verifies every disclosure link
+  opens its correct destination in a NEW TAB** on both pages (all are `target="_blank"`):
+  Subscription Terms → `…/subscription_terms…`, Account → `/my-account`, Terms &
+  Conditions → `…/terms`, Privacy Policy → `…/privacy…` (support email → asserts the
+  `mailto:` href, not clicked). URL patterns are path-based (brand-agnostic). + NEGATIVE
+  case: a standard product shows NO terms. `afterEach` clears the shared logged-in cart.
+  NOTE: the Terms/Privacy link checks overlap with `cart-terms-and-privacy-links.spec.js`
+  (which tests them on a standard cart) — kept here for full per-page link coverage in
+  the subscription context; dedupe later if desired.
+- `checkout-coupon-validation.spec.js` — GI: "Coupon Validation". Guest. Tests BOTH
+  valid + invalid on BOTH /cart and /checkout: invalid → **"Coupon not found"** toast +
+  `apply-coupon` 404; valid `AUTOTEST1` → 200 + Total recomputes down. **/checkout** also
+  asserts the `[data-qa="discount"]` line (the **/cart has no discount line / clear
+  button** — coupon still applies, total just drops). A valid coupon carries cart→checkout
+  (every apply calls `remove-coupon` first), so the spec `clearCoupon()`s on checkout to
+  test the pages independently. Toast capture is observer-based (the toast element retains
+  its last message, so "Coupon not found" repeating cart→checkout needs a MutationObserver,
+  not a text-changed check).
+- `checkout-form-validation.spec.js` — GI: "Customer Information Form Validation" +
+  "Shipping Address & Zip Form Validation" + NEW billing-address validation. Guest.
+  **FULL per-field parity** with the Manage Account specs: data-driven from
+  `data/checkout-field-validation.json` (one `test()` per section — customer / shipping /
+  billing), asserting EACH field: required field empty → "This field is required" +
+  valid clears it; optional field empty → non-blocking; format fields (names/email/
+  street/zip) → inline error + valid clears. Live messages: bad name/street/zip →
+  **"Invalid pattern"**, bad email → **"Please enter a valid email address"**. See the
+  audited required-field map in the selector reference (checkout is stricter than
+  /account-details — Email + City are required here).
+- `checkout-header-display.spec.js` — GI: "Validate Phone Number, CS Hours and Header
+  Logo". Guest. `#page-header` logo rendered (naturalWidth>0), phone number, both
+  CS-hours lines.
+- `checkout-country-state.spec.js` — GI: "Validate Each Country's State Dropdowns" +
+  "International Zipcode" (+ happy-path of "Shipping Address & Zip"). Guest,
+  **data-driven** from `data/checkout-country-cases.json` (US + Canada only — prod
+  ships US/CAN; UAT extras ignored). Country→State/Province swap + a valid in-country
+  postal clears the error (Canada = the international case). Run one: `-g "Canada"`.
+- `checkout-prepopulate.spec.js` — GI: "Logged-In - Customer Data Pre-Populates".
+  Logged-in checkout shows customer + delivery as **read-only text**; asserts both
+  pre-populate, compared against the account record (`fetchAccount()`). `afterEach`
+  clears the cart.
+
+> **"Checkout-V2 - Footer Links Check" → NOT ported (redundant).** The checkout
+> Terms & Conditions / Privacy Policy links (`[data-qa="legal-text"]`) are already
+> exercised by `cart-terms-and-privacy-links.spec.js` (its "CHECKOUT PAGE CHECKS"
+> block clicks both and asserts `/terms` + `/privacy`). The links are auth-independent,
+> so the guest-path GI test adds no coverage. Same treatment as
+> `cart-verify-header-links.spec.js`.
 
 Order Placement — ✅ all ported (pending verification here)
 All 6 order placement tests are now in `tests/` (4 ported from the feature/order-tests
@@ -409,23 +461,79 @@ npm run report
 | /order-history | `h6` "Order History" — use `getByText` |
 | /subscription-edit | No heading — use `getByText('Skip next order')` |
 
-### Checkout Page (/checkout)
-- NO `data-qa` on form fields — use placeholder text
-- Renders in two modes: PayPal-first (default), CC form revealed by clicking `text=Or pay with credit card`
+### Checkout Page (/checkout) — data-qa audited 2026-06-08
+
+**Two render modes that ALSO depend on auth — important:**
+- **Guest:** PayPal-first by default. The customer + shipping + payment (CC) form is
+  revealed by clicking **"Or pay with credit card"** (`CheckoutPage.revealCreditCardForm()`).
+- **Logged-in:** the customer + delivery sections render as **read-only display text**
+  (with an "Edit" toggle that swaps to inputs); payment is a saved-card `[data-qa="saved-card"]`.
+  So `[data-qa="first-name"]` inputs do NOT exist until you click Edit.
+
+The team has added **clean data-qa across /checkout** (the old placeholder/xpath
+locators in `checkout.page.js` remain for the order-placement specs; prefer data-qa
+for new work). **Instance-suffix gotcha** (reused `<address-form>` component):
+- **Delivery (shipping)** inputs use the **`--shipping`** (double-dash) suffix.
+- **Billing** inputs (revealed by the "Use a different billing address" toggle) use the
+  **`-`** (single trailing dash) suffix. These are DISTINCT exact data-qa strings, so
+  `[data-qa="ship-state-"]` (billing) never matches `[data-qa="ship-state--shipping"]`.
+  **Never use a `^=` prefix match here** — it would match both.
 
 | What | Selector |
 |------|----------|
-| "Or pay with credit card" toggle | `text=Or pay with credit card` |
-| Customer First Name | `main input[placeholder="First Name"]` — scoped to avoid footer |
-| Customer Last Name | `main input[placeholder="Last Name"]` |
-| Customer Email | `main input[placeholder="Email"]` |
-| Customer Phone | `main input[placeholder="Phone"]` |
-| Delivery First name | `input[placeholder="First name"]` (lowercase n) |
-| Delivery Street | `input[placeholder="Street Address"]` |
-| Delivery City | `input[placeholder="City"]` |
-| Delivery Country | `page.locator('select').first()` |
-| Delivery State | `page.locator('select').nth(1)` — match by `{ label: 'California' }` |
-| Delivery Zip | `input[placeholder="Zip/Postal Code"]` |
+| "Or pay with credit card" toggle (guest) | `text=Or pay with credit card` |
+| Customer First / Last / Phone / Email | `[data-qa="first-name" / "last-name" / "phone" / "email"]` (ids `customer-firstName` …) |
+| Customer Info section | `[data-qa="customer-info-form"]` (display text when logged-in) |
+| Delivery section | `[data-qa="address-form"]` (`.first()`) |
+| Delivery Country | `[data-qa="ship-country--shipping"]` (`<select>`, value `US\|United States` / `CA\|Canada`) |
+| Delivery First / Last name | `[data-qa="first-name--shipping" / "last-name--shipping"]` |
+| Delivery Street / Additional / City | `[data-qa="ship-street-address--shipping" / "ship-additional-address-line--shipping" / "ship-city--shipping"]` |
+| Delivery State/Province | `[data-qa="ship-state--shipping"]` (`<select>`, value `CA\|California`) |
+| Delivery Zip / Phone | `[data-qa="ship-postal-code--shipping" / "phone--shipping"]` |
+| "Use a different billing address" toggle | `[data-qa="billing-address-toggle"]` (hidden checkbox — click wrapping `<label>`) |
+| Billing form (2nd address-form when on) | `[data-qa="address-form"]` `.nth(1)` |
+| Billing fields | `[data-qa="ship-{country,street-address,additional-address-line,city,state,postal-code}-"]` + `first-name-` / `last-name-` (**single trailing dash; NO phone field**) |
+| Order Summary Subtotal/Tax/Shipping/Total | `[data-qa="subtotal" / "tax" / "shipping" / "total"]` (data-qa now exists — prefer over xpath) |
+| Order Summary Discount (after coupon) | `[data-qa="discount"]` (only present once a valid coupon applies) |
+| Coupon input | `[data-qa="coupon-input"] input` (it's a `<gh-input>` wrapper; inner `#order-form-coupon-input`) |
+| Coupon apply | `[data-qa="coupon-apply"]` |
+| Coupon clear (after valid apply) | `[data-qa="coupon-clear"]` |
+| Subscription terms (sub item in cart) | `[data-qa="subscription-terms-text"]` (= `#subscription-terms-section`; 3 links, no checkbox) |
+| Legal disclaimer (Terms/Privacy links) | `[data-qa="legal-text"]` |
+| Submit Order | `[data-qa="submit-order-btn"]` (disables on invalid form) |
+| Toast | `[data-qa="toast-message"]` (site-wide, transient — see toast quirk) |
+| Header region | `#page-header` (`<linkless-page-header>`, **NO data-qa — TODO: ask team**) |
+| Header logo | `#page-header img[alt="Brand Logo"]` (no data-qa) |
+| Header phone / CS hours | text in `#page-header` (phone is plain text, not a `tel:` link) — no data-qa |
+
+**Validation (guest form, live-verified 2026-06-08) — FORMAT + required. Errors render
+as `<p class="invalid-message">` (same class as account-details; NO data-qa). GOTCHA:
+the input sits in a NESTED inner `<fieldset>` while the message lives in the OUTER one,
+so `ancestor::fieldset[1]` from the input does NOT contain it — scope to the SECTION
+container instead (`[data-qa="customer-info-form"]` / the shipping/billing
+`[data-qa="address-form"]`) `.locator('.invalid-message')`:**
+- Name with digits ("123") → **"Invalid pattern"**; Street `[]\` → "Invalid pattern"; Zip `[][][]` → "Invalid pattern".
+- Email malformed → **"Please enter a valid email address"**.
+- Empty required field → **"This field is required"** (renders with a short delay — Playwright's auto-waiting `toBeVisible` handles it). Valid input clears the field's error.
+- **The inline required message — NOT the submit button — is the signal.** On guest checkout the submit button is always disabled until the Braintree CC fields are filled, independent of the address form, so don't gate per-field assertions on it.
+- **Required-field map (live-audited 2026-06-08, captured in `data/checkout-field-validation.json`). Checkout is STRICTER than /account-details:**
+  - **Customer Info:** First name, Last name, **Email** required; **Phone** optional. (⚠️ Email is OPTIONAL on /account-details but REQUIRED here.)
+  - **Shipping (Delivery):** First name, Last name, Street, **City**, Zip/Postal required; Additional + Phone optional. (⚠️ City is OPTIONAL for shipping on /account-details but REQUIRED here.)
+  - **Billing:** First name, Last name, Street, City, Zip/Postal required; Additional optional.
+  - Country/State are pre-selected `<select>`s (default to US + first state) — not empty-testable, so not asserted as required.
+
+**Coupon backend (live-verified 2026-06-08), shared by /cart and /checkout:**
+- `POST /commerce-service/proxy/cart/apply-coupon` → **404** (invalid) / **200** (valid).
+- `POST /commerce-service/proxy/cart/remove-coupon` → 200 (clear).
+- Invalid coupon toast: transient sequence "Applying your discount!" → **"Coupon not found"**.
+- Valid `AUTOTEST1` ≈ $1.00 off. **Cart** coupon hooks differ: `[data-qa="coupon-code"]` + `[data-qa="coupon-apply-btn"]`.
+
+### Checkout Page (/checkout) — legacy order-summary xpath (order-placement specs)
+The order-placement specs still use placeholder/xpath locators (pre-data-qa). Kept for
+back-compat; new specs use the data-qa table above.
+
+| What | Selector |
+|------|----------|
 | Order Summary Subtotal | `xpath=//*[normalize-space(text())="Subtotal:"]/following-sibling::*[1]` |
 | Order Summary Sales Tax | `xpath=//*[normalize-space(text())="Sales Tax:"]/following-sibling::*[1]` |
 | Order Summary Shipping | `xpath=//*[normalize-space(text())="Shipping:"]/following-sibling::*[1]` |
@@ -869,5 +977,40 @@ Capture ideas here so they don't get lost. Don't action until the migration is d
   enabled but **never clicks it** (no submission, nothing stored). Reuses
   `PaymentDetailsPage.fillCreditCard()` + the `addCardBtn` enabled check. Driver:
   smoke the prod form renders/validates without touching the live account.
+
+- **Logged-in coupon coverage (optional)** — `checkout-coupon-validation.spec.js` is
+  guest-only (matches the GI source). A logged-in coupon path hits the SAME
+  `apply-coupon` endpoint + the same cart/checkout coupon UI, so it adds little new
+  coverage. If we ever want it, fold a coupon apply/remove into an existing logged-in
+  order/checkout spec rather than a new test — and clean up via `coupon-clear`
+  (checkout) since a logged-in coupon persists on the shared account's server-side
+  cart. Driver: only if logged-in coupon handling ever diverges from guest.
+
+- **Brand-portability of the checkout specs (do before running on a new brand)** —
+  the 6 checkout specs are built on platform-level `data-qa` (shared app builder), so
+  selectors carry across brands; the differences are brand CONTENT. To run them on a
+  new brand (e.g. the upcoming brand + its new UAT site):
+  - **Prereqs (whole-suite, not just these specs):** (1) `site-config.json` entry
+    (UAT base URL, paths, `testAddress`, `testAccountIds`, content); (2)
+    `data/products/<brand>-uat.csv` with variant IDs (`loggedin_std_1`,
+    `loggedin_sub_2`, `loggedout_std_1/2`, …); (3) `.env` creds
+    `<BRAND>_TEST_EMAIL`/`_TEST_PASSWORD` + account ID; (4) **`QA_UA_TOKEN`
+    allow-listed on the new brand's UAT Cloudflare zone** (else logged-in navs hit the
+    bot wall); (5) `cartv3:checkout:*` npm scripts (or run with `BRAND=<brand>`).
+  - **Two HARDCODED Dr.Marty values to move into `data/site-config.json` per brand**
+    (read via `brand.*`): the valid coupon `AUTOTEST1`
+    (`checkout-coupon-validation.spec.js` → e.g. `brand.testCoupon.valid`) and the
+    CS-hours strings (`checkout-header-display.spec.js` → e.g. `brand.csHours`
+    {weekday, weekend}; the phone is already a generic regex). Until moved, those two
+    specs FAIL on any non-drmarty brand.
+  - **Brand-clean today (code), but verify the brand's content matches:**
+    `checkout-prepopulate` (asserts vs the brand's own account record — fully portable);
+    `checkout-form-validation` (platform validation copy; the required-field map lives in
+    `data/checkout-field-validation.json` — edit if the brand's required fields differ);
+    `checkout-country-state` (data-driven US/CAN — fine if the brand ships US/CAN);
+    `checkout-subscription-terms` (generic "automatically renewing subscription" copy +
+    brand's `loggedin_sub_2`).
+  - Badlands specifically still has only placeholder CSVs + no test account, so it
+    can't run until that data lands.
 
 - **Known catalog bug (Jira filed)** — Cart and Order Confirmation render different display names for the Tilly's Treasures variant ("Tilly's Treasure Beef Liver Treats" vs "Dr. Marty Tilly's Treasures - 1 Bag"). `assertProductNamesMatch` in `helpers/order-validations.js` is intentionally left strict so it keeps surfacing this mismatch — do NOT loosen the helper to make the test pass; the fix belongs in the catalog data.

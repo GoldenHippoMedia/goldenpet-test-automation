@@ -1,0 +1,45 @@
+{
+  "_comment": "Per-field validation map for tests/checkout-form-validation.spec.js (guest /checkout), live-audited 2026-06-08. One test() per section. For each field: required:true -> empty must show 'This field is required'; required:false -> empty must NOT block (optional); invalid/invalidMsg -> that value must surface the inline format error. Errors render as <p class=invalid-message> scoped to the section. NOTE: checkout is STRICTER than /account-details — Email is REQUIRED here (optional there) and City is REQUIRED for shipping+billing (optional for shipping there). Country/State are pre-selected dropdowns (filled in 'selects', not empty-tested). sectionRef maps to a CheckoutPage locator. Adding/removing a required field = edit this file, no test code.",
+  "customer": {
+    "sectionRef": "customerInfoForm",
+    "selects": [],
+    "fields": [
+      { "qa": "first-name", "label": "First name", "required": true,  "valid": "Craig",   "invalid": "123",     "invalidMsg": "Invalid pattern" },
+      { "qa": "last-name",  "label": "Last name",  "required": true,  "valid": "Clemens", "invalid": "456",     "invalidMsg": "Invalid pattern" },
+      { "qa": "email",      "label": "Email",      "required": true,  "valid": "tester@goldenhippo.com", "invalid": "123TEST", "invalidMsg": "Please enter a valid email address" },
+      { "qa": "phone",      "label": "Phone",      "required": false, "valid": "8188359134", "invalid": "Test", "invalidMsg": "Invalid pattern" }
+    ]
+  },
+  "shipping": {
+    "sectionRef": "shippingAddressForm",
+    "selects": [
+      { "qa": "ship-country--shipping", "value": "US|United States" },
+      { "qa": "ship-state--shipping",   "value": "CA|California" }
+    ],
+    "fields": [
+      { "qa": "first-name--shipping",                  "label": "First name", "required": true,  "valid": "Craig",   "invalid": "123", "invalidMsg": "Invalid pattern" },
+      { "qa": "last-name--shipping",                   "label": "Last name",  "required": true,  "valid": "Clemens", "invalid": "456", "invalidMsg": "Invalid pattern" },
+      { "qa": "ship-street-address--shipping",         "label": "Street",     "required": true,  "valid": "23251 Mulholland Drive", "invalid": "[]\\", "invalidMsg": "Invalid pattern" },
+      { "qa": "ship-city--shipping",                   "label": "City",       "required": true,  "valid": "Woodland Hills" },
+      { "qa": "ship-postal-code--shipping",            "label": "Zip/Postal", "required": true,  "valid": "91364", "invalid": "[][][]", "invalidMsg": "Invalid pattern" },
+      { "qa": "ship-additional-address-line--shipping","label": "Additional", "required": false, "valid": "Apt 5" },
+      { "qa": "phone--shipping",                       "label": "Phone",      "required": false, "valid": "8188359134", "invalid": "Test", "invalidMsg": "Invalid pattern" }
+    ]
+  },
+  "billing": {
+    "sectionRef": "billingForm",
+    "toggleBilling": true,
+    "selects": [
+      { "qa": "ship-country-", "value": "US|United States" },
+      { "qa": "ship-state-",   "value": "CA|California" }
+    ],
+    "fields": [
+      { "qa": "first-name-",                  "label": "First name", "required": true,  "valid": "Craig",   "invalid": "123", "invalidMsg": "Invalid pattern" },
+      { "qa": "last-name-",                   "label": "Last name",  "required": true,  "valid": "Clemens", "invalid": "456", "invalidMsg": "Invalid pattern" },
+      { "qa": "ship-street-address-",         "label": "Street",     "required": true,  "valid": "23251 Mulholland Drive", "invalid": "[]\\", "invalidMsg": "Invalid pattern" },
+      { "qa": "ship-city-",                   "label": "City",       "required": true,  "valid": "Woodland Hills" },
+      { "qa": "ship-postal-code-",            "label": "Zip/Postal", "required": true,  "valid": "91364", "invalid": "[][][]", "invalidMsg": "Invalid pattern" },
+      { "qa": "ship-additional-address-line-","label": "Additional", "required": false, "valid": "Apt 5" }
+    ]
+  }
+}

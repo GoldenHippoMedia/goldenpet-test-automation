@@ -46,7 +46,16 @@
     "cartv3:account:shipping-can:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/account-update-shipping-address.spec.js --headed -g \"Canada\"",
     "cartv3:account:billing:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/account-update-billing-address.spec.js --headed",
     "cartv3:account:billing-us:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/account-update-billing-address.spec.js --headed -g \"United States\"",
-    "cartv3:account:billing-can:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/account-update-billing-address.spec.js --headed -g \"Canada\""
+    "cartv3:account:billing-can:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/account-update-billing-address.spec.js --headed -g \"Canada\"",
+    "cartv3:checkout:all:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/checkout-*.spec.js --headed",
+    "cartv3:checkout:subscription-terms:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/checkout-subscription-terms.spec.js --headed",
+    "cartv3:checkout:coupon:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/checkout-coupon-validation.spec.js --headed",
+    "cartv3:checkout:form-validation:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/checkout-form-validation.spec.js --headed",
+    "cartv3:checkout:header:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/checkout-header-display.spec.js --headed",
+    "cartv3:checkout:country-state:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/checkout-country-state.spec.js --headed",
+    "cartv3:checkout:country-us:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/checkout-country-state.spec.js --headed -g \"United States\"",
+    "cartv3:checkout:country-can:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/checkout-country-state.spec.js --headed -g \"Canada\"",
+    "cartv3:checkout:prepopulate:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/checkout-prepopulate.spec.js --headed"
   },
   "repository": {
     "type": "git",

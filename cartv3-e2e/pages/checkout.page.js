@@ -81,6 +81,83 @@ class CheckoutPage extends BasePage {
 
     // --- Order confirmation ---
     this.orderIdLocator = page.locator('//*[starts-with(text(),"ORD-")]').first();
+
+    // =====================================================================
+    // data-qa locators (added 2026-06-08 — checkout validation/display batch)
+    // The team has added clean data-qa across /checkout since this page object
+    // was first written (the placeholder/xpath locators above remain for the
+    // order-placement specs). Prefer these for new work.
+    //
+    // INSTANCE SUFFIX GOTCHA: the reused <address-form> component tags its inputs
+    // with an instance suffix. The Delivery (shipping) form uses "--shipping"
+    // (double dash); the Billing form — revealed by the "Use a different billing
+    // address" toggle — uses "-" (single trailing dash). These are DISTINCT exact
+    // data-qa strings, so [data-qa="ship-state-"] (billing) never matches
+    // [data-qa="ship-state--shipping"] (shipping). NEVER use a ^= prefix match here.
+    // =====================================================================
+
+    // --- Customer Information (data-qa) ---
+    this.customerInfoForm = page.locator('[data-qa="customer-info-form"]');
+    this.cFirstName = page.locator('[data-qa="first-name"]');
+    this.cLastName  = page.locator('[data-qa="last-name"]');
+    this.cPhone     = page.locator('[data-qa="phone"]');
+    this.cEmail     = page.locator('[data-qa="email"]');
+
+    // --- Delivery (shipping) address-form — "--shipping" suffix ---
+    this.shippingAddressForm = page.locator('[data-qa="address-form"]').first();
+    this.shipCountry    = page.locator('[data-qa="ship-country--shipping"]');
+    this.shipFirstName  = page.locator('[data-qa="first-name--shipping"]');
+    this.shipLastName   = page.locator('[data-qa="last-name--shipping"]');
+    this.shipStreet     = page.locator('[data-qa="ship-street-address--shipping"]');
+    this.shipAdditional = page.locator('[data-qa="ship-additional-address-line--shipping"]');
+    this.shipCity       = page.locator('[data-qa="ship-city--shipping"]');
+    this.shipState      = page.locator('[data-qa="ship-state--shipping"]');
+    this.shipPostal     = page.locator('[data-qa="ship-postal-code--shipping"]');
+    this.shipPhone      = page.locator('[data-qa="phone--shipping"]');
+
+    // --- "Use a different billing address" toggle + billing form ("-" suffix) ---
+    // The checkbox is visually hidden — click the wrapping <label>, not the input.
+    this.billingToggle      = page.locator('[data-qa="billing-address-toggle"]'); // hidden checkbox (read state only)
+    this.billingToggleLabel = page.locator('label', { hasText: 'Use a different billing address' });
+    this.billingForm = page.locator('[data-qa="address-form"]').nth(1); // 2nd address-form when billing is on
+    this.billCountry    = page.locator('[data-qa="ship-country-"]');
+    this.billFirstName  = page.locator('[data-qa="first-name-"]');
+    this.billLastName   = page.locator('[data-qa="last-name-"]');
+    this.billStreet     = page.locator('[data-qa="ship-street-address-"]');
+    this.billAdditional = page.locator('[data-qa="ship-additional-address-line-"]');
+    this.billCity       = page.locator('[data-qa="ship-city-"]');
+    this.billState      = page.locator('[data-qa="ship-state-"]');
+    this.billPostal     = page.locator('[data-qa="ship-postal-code-"]');
+
+    // --- Order Summary (data-qa now exists — preferred over the xpath locators above) ---
+    this.orderSubtotal = page.locator('[data-qa="subtotal"]');
+    this.orderTax      = page.locator('[data-qa="tax"]');
+    this.orderShipping = page.locator('[data-qa="shipping"]');
+    this.orderTotal    = page.locator('[data-qa="total"]');
+    this.orderDiscount = page.locator('[data-qa="discount"]'); // only present once a valid coupon applies
+
+    // --- Coupon (checkout). NOTE: different data-qa from the CART page
+    //     (cart uses coupon-code / coupon-apply-btn). The input is a <gh-input>
+    //     wrapper, so target its inner <input>. ---
+    this.couponInputQa = page.locator('[data-qa="coupon-input"] input');
+    this.couponApplyQa = page.locator('[data-qa="coupon-apply"]');
+    this.couponClear   = page.locator('[data-qa="coupon-clear"]'); // appears after a valid coupon applies
+
+    // --- Subscription terms (logged-in, when a subscription item is in the cart) ---
+    this.subscriptionTerms = page.locator('[data-qa="subscription-terms-text"]');
+
+    // --- Legal disclaimer (Terms & Conditions + Privacy Policy links) ---
+    this.legalText = page.locator('[data-qa="legal-text"]');
+
+    // --- Submit (data-qa) + toast ---
+    this.submitOrderBtnQa = page.locator('[data-qa="submit-order-btn"]');
+    this.toastMessage = page.locator('[data-qa="toast-message"]');
+
+    // --- Header (#9). <linkless-page-header id="page-header"> has NO data-qa.
+    //     TODO: ask team to add data-qa to the header logo / phone / CS hours. ---
+    this.pageHeader  = page.locator('#page-header');
+    this.headerLogo  = page.locator('#page-header img[alt="Brand Logo"]');
+    this.headerPhone = page.locator('#page-header a[href^="tel:"], #page-header').first();
   }
 
   /** Wait for the checkout page to be ready (PayPal-first mode). */
@@ -217,6 +294,141 @@ class CheckoutPage extends BasePage {
       shipping: parseMoney(await safeText(this.summaryShipping)),
       total:    parseMoney(await safeText(this.summaryTotal)),
     };
+  }
+
+  // =====================================================================
+  // data-qa-based helpers (2026-06-08 batch) — validation / display / coupon
+  // =====================================================================
+
+  /**
+   * Reveal the credit-card form on a GUEST checkout (PayPal-first by default).
+   * Clicks "Or pay with credit card" and waits for the data-qa email input.
+   * Idempotent — no-ops if the form is already showing.
+   */
+  async revealCreditCardForm() {
+    if (await this.cEmail.isVisible().catch(() => false)) return;
+    await this.payWithCreditCardLink.click();
+    await this.cEmail.waitFor({ state: 'visible', timeout: 15000 });
+  }
+
+  /** Wait until the <select> identified by exact `dataQa` contains an option with `value`. */
+  async _waitForSelectOption(dataQa, value) {
+    await this.page.waitForFunction(
+      ({ dq, val }) => {
+        const s = document.querySelector(`[data-qa="${dq}"]`);
+        return !!s && [...s.options].some((o) => o.value === val);
+      },
+      { dq: dataQa, val: value },
+      { timeout: 10000 }
+    );
+  }
+
+  /** Trimmed labels of every <option> in a <select> locator. */
+  async optionLabels(selectLocator) {
+    return (await selectLocator.locator('option').allTextContents()).map((s) => s.trim());
+  }
+
+  /** Labels of every option in the Delivery State/Province dropdown. */
+  async shipStateOptionLabels() {
+    return this.optionLabels(this.shipState);
+  }
+
+  /**
+   * Fill the Delivery (shipping) address via data-qa. Undefined fields untouched.
+   * Changing country repopulates the State/Province <select> — waits for the
+   * target option before selecting it.
+   * @param {{country, firstName, lastName, street, additional, city, state, zip, phone}} a
+   */
+  async fillShippingAddressQa(a = {}) {
+    if (a.country !== undefined) {
+      await this.shipCountry.selectOption(a.country);
+      if (a.state !== undefined) await this._waitForSelectOption('ship-state--shipping', a.state);
+    }
+    if (a.firstName  !== undefined) await this.shipFirstName.fill(a.firstName);
+    if (a.lastName   !== undefined) await this.shipLastName.fill(a.lastName);
+    if (a.street     !== undefined) await this.shipStreet.fill(a.street);
+    if (a.additional !== undefined) await this.shipAdditional.fill(a.additional);
+    if (a.city       !== undefined) await this.shipCity.fill(a.city);
+    if (a.state      !== undefined) await this.shipState.selectOption(a.state);
+    if (a.zip        !== undefined) await this.shipPostal.fill(a.zip);
+    if (a.phone      !== undefined) await this.shipPhone.fill(a.phone);
+  }
+
+  /** Read the "Use a different billing address" checkbox state. */
+  async isDifferentBillingOn() {
+    return this.billingToggle.evaluate((el) => el.checked).catch(() => false);
+  }
+
+  /**
+   * Toggle "Use a different billing address" on/off (idempotent). Clicks the
+   * visible <label> (the checkbox is hidden) and waits for the billing form
+   * (a 2nd address-form) to appear/detach.
+   */
+  async setDifferentBilling(on) {
+    if ((await this.isDifferentBillingOn()) !== on) {
+      await this.billingToggleLabel.click();
+    }
+    if (on) await this.billStreet.waitFor({ state: 'visible', timeout: 10000 });
+    else    await this.billStreet.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+  }
+
+  /**
+   * Apply a coupon on /checkout and capture, concurrently:
+   *   - the POST /commerce-service/proxy/cart/apply-coupon response (404 invalid / 200 valid)
+   *   - the transient toast (waits for text to change from any stale message).
+   * Returns { response, toastText }.
+   */
+  async applyCoupon(code) {
+    await this.couponInputQa.fill(code);
+    await this.armToastCapture(); // arm BEFORE the click (toast is transient + retains last msg)
+    const respP = this.page.waitForResponse(
+      (r) => /\/commerce-service\/proxy\/cart\/apply-coupon/.test(r.url())
+        && r.request().method() === 'POST',
+      { timeout: 20000 }
+    );
+    await this.couponApplyQa.click();
+    const response = await respP;
+    const toastText = await this.captureToast(/coupon not found|applying|discount|success|added|removed/i, 6000);
+    console.log(`[checkout] apply-coupon "${code}" → status ${response.status()} toast="${toastText}"`);
+    return { response, toastText };
+  }
+
+  /** Remove an applied coupon (cleanup). No-op if no coupon is applied. */
+  async clearCoupon() {
+    if (await this.couponClear.isVisible().catch(() => false)) {
+      const respP = this.page.waitForResponse(
+        (r) => /\/commerce-service\/proxy\/cart\/remove-coupon/.test(r.url()),
+        { timeout: 15000 }
+      ).catch(() => null);
+      await this.couponClear.click();
+      await respP;
+      await this.orderDiscount.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    }
+  }
+
+  /** Order Summary snapshot via data-qa (preferred over the xpath getOrderSummary). */
+  async getOrderSummaryQa() {
+    const safeText = async (loc) => {
+      try { return await loc.textContent({ timeout: 2000 }); }
+      catch { return null; }
+    };
+    return {
+      subtotal: parseMoney(await safeText(this.orderSubtotal)),
+      tax:      parseMoney(await safeText(this.orderTax)),
+      shipping: parseMoney(await safeText(this.orderShipping)),
+      total:    parseMoney(await safeText(this.orderTotal)),
+      discount: parseMoney(await safeText(this.orderDiscount)),
+    };
+  }
+
+  /** Read-only display text of the Customer Information section (logged-in checkout). */
+  async getCustomerInfoDisplayText() {
+    return ((await this.customerInfoForm.innerText().catch(() => '')) || '').trim();
+  }
+
+  /** Read-only display text of the Delivery Information section (logged-in checkout). */
+  async getDeliveryDisplayText() {
+    return ((await this.shippingAddressForm.innerText().catch(() => '')) || '').trim();
   }
 }
 
