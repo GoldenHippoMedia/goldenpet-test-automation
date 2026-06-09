@@ -136,7 +136,7 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
         ├── order-loggedin-cart-paypal.spec.js
         ├── order-loggedin-checkout-cc.spec.js
         ├── order-loggedin-checkout-paypal.spec.js
-        ├── thank-you-page.spec.js
+        ├── thank-you-page.spec.js                 # ✅ verified green here — TY/confirmation DISPLAY (UAT-only, @real-order, submits from /cart)
         ├── order-loggedin-list-reorder.spec.js    # Order History list + Buy It Again + Re-Order All
         ├── pets-create-profile.spec.js            # ✅ verified green here
         ├── pets-edit-profile.spec.js              # ✅ verified green here
@@ -151,7 +151,8 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
         ├── checkout-form-validation.spec.js         # ✅ verified green here — customer/shipping/billing per-field format+required (guest)
         ├── checkout-header-display.spec.js          # ✅ verified green here — logo/phone/CS-hours (guest)
         ├── checkout-country-state.spec.js           # ✅ verified green here — US/CAN country→state + intl zip (guest, data-driven)
-        └── checkout-prepopulate.spec.js             # ✅ verified green here — logged-in customer+shipping pre-populate
+        ├── checkout-prepopulate.spec.js             # ✅ verified green here — logged-in customer+shipping pre-populate
+        └── country-options-restricted.spec.js       # ✅ verified green on PROD (skips UAT) — Country dropdown = exactly US + CAN (/account-details + /checkout)
 ```
 
 ---
@@ -280,10 +281,11 @@ branch + guest-cc + the renamed loggedin-cart-cc). See the "needs verification h
 
 Order History — ✅ all ported AND verified green here (UAT, headed). See "Verified green here" above.
 
-Upsell / Downsell (3-4) — backlog after Order tests
-- [ ] upsell-accept-first.spec.js
-- [ ] upsell-decline-accept-downsell.spec.js
-- [ ] upsell-decline-all.spec.js
+Upsell / Downsell — NO standalone GI tests exist (this was a speculative breakout, not
+backed by any Ghost export). The upsell/downsell funnel is already exercised within the
+specs that traverse it: every `@real-order` order spec walks the funnel and declines, and
+`thank-you-page.spec.js` ACCEPTS the first upsell and asserts the resulting SPECIAL OFFER
+ORDER NO. No separate specs needed.
 
 Pet Profiles — ✅ all ported AND verified green here (UAT, headed)
 All 3 GI Pet Profiles tests + a new validation spec are in `tests/` and passing.
@@ -345,14 +347,87 @@ Manage Payments — ✅ verified green here (UAT, headed, 2026-06-03)
   on production. npm: `cartv3:payments:add-card:uat`. Adds
   `pages/payment-details.page.js`.
 
-Special Rules (4)
-- [ ] DrMartyPets - Country Selections in Manage Account
-- [ ] Dr Marty Pets - Sticky Footer Bundle Coupon Check
-- [ ] Dr Marty Pets - Sticky Footer Bundle Opt-In
-- [ ] Dr Marty Pets - Sticky Footer Bundle Subscription Check
+Special Rules (1)
+- [x] DrMartyPets - Country Selections in Manage Account → `country-options-restricted.spec.js`
+  (**PROD-ONLY**, ✅ verified green on prod / skips UAT). The GI test only asserted US + CAN are
+  *present* in the /account-details shipping Country dropdown — that PRESENCE is already
+  fully covered on UAT + prod by `account-update-shipping-address.spec.js` and
+  `checkout-country-state.spec.js` (both `selectOption` US and CA). The net-new coverage is
+  the **exclusivity** rule implied by the GI name/description ("only US + Canada"): the
+  Country `<select>` contains *exactly* those two. That holds **only on prod** — UAT seeds
+  EXTRA countries into the dropdown (known UAT data quirk), so an exclusivity assert
+  false-fails on UAT → `test.skip(brand.env !== 'prod')`. Covers BOTH country pickers:
+  /account-details shipping (logged-in) + /checkout shipping (guest); the option list is
+  auth-independent (sourced from the shared `<address-form>` country config), so one path
+  per surface suffices. Read-only (no mutation/cleanup), out of `@real-order`. Asserts the
+  sorted option *values* equal `["CA|Canada","US|United States"]`. GOTCHA: both dropdowns
+  have a leading placeholder option **"-Select a Country-"** (its value is the label text,
+  NOT empty), so `countryOptionValues()` filters to the real `<CODE>|<Name>` format
+  (`/^[A-Z]{2}\|/`) to drop it. Added `countryOptionLabels()` + `countryOptionValues()` to
+  `account-details.page.js` and `checkout.page.js`. npm:
+  `cartv3:country:restricted{,-account,-checkout}:prod`.
+> The 3 "Sticky Footer Bundle" GI tests (Coupon Check, Opt-In, Subscription Check) are
+> **obsolete — the Sticky Footer Bundle feature no longer exists in the app**, so there is
+> nothing to port. Their GI exports were removed from `reference/` (2026-06-09). This was
+> the only remaining Special Rules work; the section is now complete.
 
 Thank You Page (1)
-- [ ] Thank You Page - Customer & Order Information Displayed (EXCLUDE PROD)
+- [x] Thank You Page - Customer & Order Information Displayed (EXCLUDE PROD) →
+  `thank-you-page.spec.js` (**✅ verified green here — UAT, headed, 2026-06-09**). Faithful +
+  enhanced port: `@real-order`, **UAT-only** (`test.skip` on prod — the GI test uses a
+  UAT-only Amex card; we use the saved default card). Flow mirrors GI: login → add a
+  randomized standard product (dodge duplicate-order errors) → apply `AUTOTEST1` (optional
+  — coupon entry can intermittently fail in UAT) → **Submit Order directly from `/cart`**
+  (saved default card; NOT via `/checkout` — GI only went to `/checkout` for the disabled
+  billing steps, so for this display test `/cart` submit is equivalent, matches
+  `order-loggedin-cart-cc.spec.js`, and avoids the `/checkout` Cloudflare challenge) →
+  **accept the 1st upsell, decline the rest**
+  (to surface a SPECIAL OFFER ORDER NO.) → assert the confirmation page **displays** the
+  full GI set (each asserted, not just logged): thank-you headline, Order ID, Order Date,
+  **Upsell Order ID** (accepts the 1st upsell to surface it, but asserts FORMAT only when a
+  SPECIAL OFFER ORDER NO. actually displays — intermittent, GI marks it optional), money
+  math + **Tax**, **Shipping** + shipping address, **Customer info** (name AND email), and
+  **Discounts** — the coupon apply is gated on its `apply-coupon` → 200 response, and the
+  "Coupons & Discounts:" row is required to show a non-zero amount only when the coupon
+  actually applied (UAT coupon entry is flaky, so it logged-skips otherwise). PLUS net-new
+  **identity** checks (snapshots the cart before submit): the ordered **product** appears on
+  the receipt (loose name match cart→TY), confirmation **quantity** is positive, and the
+  receipt **email == the logged-in account** (`brand.email`). DESIGN NOTE (SDET): it does
+  NOT assert cart total == confirmation total — accepting the upsell can change totals, and
+  full financial cart→confirmation matching is already covered by
+  `order-loggedin-checkout-cc.spec.js`; here we match only upsell-STABLE invariants and use
+  `assertMoneyMath` for confirmation-internal consistency. Reuses `OrderConfirmationPage`
+  (label-text + following-sibling xpath) — no new page object.
+  **`afterEach` clears the logged-in cart** (server-side persistent shared state — a run
+  that fails before submit would otherwise leave its product behind and the cart
+  accumulates across runs). **429 guard:** the spec fails fast with a clear
+  "Too many requests" message at checkout, with a network diagnostic (first-party + CF
+  only) that logs the offending calls. ROOT CAUSE (diagnosed 2026-06-09): it's a
+  **Cloudflare edge managed-challenge / rate-limit**, NOT a backend order cap — a
+  `challenges.cloudflare.com/cdn-cgi/challenge-platform` 401 fires at checkout and the
+  `commerce-service/proxy/{tax/cart,cart/*}` + `account-service/proxy/*` calls abort
+  behind it (all `server: cloudflare`), so the app shows "Too many requests" and Submit
+  stays disabled. Login + `apply-coupon` (→ 200) still work, so it's not a global block.
+  Repeated headed `@real-order` runs in one window trip Cloudflare's per-IP/session rate
+  limit; the `QA_UA_TOKEN` UA allow-list gets past the INITIAL bot wall but does NOT cover
+  this checkout-time challenge. Submitting from `/cart` (not `/checkout`) sidesteps it, so
+  the test passes today; the DevOps ask only matters if a future test must submit via
+  `/checkout`. **→ DevOps TODO:** extend the QA allow-list / raise the CF rate-limit +
+  Turnstile rule to cover the checkout & order `*/proxy/*` endpoints.
+  **Duplicate-order resilience:** the platform rejects an order matching a recent one
+  ("duplicate order" toast). Variation is randomized across all 4 `loggedin_std_*` variants
+  × qty 1-3 (decoupled — the old GI scheme only made 2 signatures and collided under
+  repeated runs); on a duplicate rejection the spec bumps quantity (new signature) and
+  resubmits up to 4× (safe — a rejected order never leaves `/cart`, so no double-charge).
+  Still: **space `@real-order` runs out** — rapid repeats trip both this and the CF limit.
+  **Speed:** `waitForURL` off `/cart` instead of a blind 7s sleep, `applyCoupon(..,{toastTimeout:0})`
+  to skip the dead 6s toast wait (status-only), trimmed funnel polls. Also hardened
+  `pages/login.page.js` to `waitForURL(..,{waitUntil:'commit'})` (gotcha #9 — Angular
+  `/my-account` never fires `load`; benefits every logged-in spec). Run:
+  `npm run cartv3:order:thank-you:uat` (UAT only — places ONE real sandbox order).
+  NOTE: net-new vs the order-placement specs is the upsell-acceptance path + the
+  discount/upsell-order-ID display + cart→TY product/email identity; the core confirmation
+  asserts overlap with `order-loggedin-checkout-cc.spec.js` (kept — dedicated DISPLAY test).
 
 > When a test is verified green in this repo, move it to a "Verified here" section above.
 

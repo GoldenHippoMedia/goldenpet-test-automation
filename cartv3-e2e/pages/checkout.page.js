@@ -333,6 +333,25 @@ class CheckoutPage extends BasePage {
     return this.optionLabels(this.shipState);
   }
 
+  /** Labels of every option in the Delivery Country dropdown (e.g. "United States"). */
+  async countryOptionLabels() {
+    return this.optionLabels(this.shipCountry);
+  }
+
+  /**
+   * Trimmed `value` of every real COUNTRY option in the Delivery Country <select>
+   * (e.g. "US|United States", "CA|Canada"). Filtered to the "<CODE>|<Name>" format
+   * so the leading placeholder option ("-Select a Country-", whose value is NOT a
+   * country code) is dropped. Used by the prod-only "country restricted to US + CAN"
+   * exclusivity check (country-options-restricted.spec.js).
+   */
+  async countryOptionValues() {
+    const values = await this.shipCountry
+      .locator('option')
+      .evaluateAll((opts) => opts.map((o) => o.value));
+    return values.map((v) => v.trim()).filter((v) => /^[A-Z]{2}\|/.test(v));
+  }
+
   /**
    * Fill the Delivery (shipping) address via data-qa. Undefined fields untouched.
    * Changing country repopulates the State/Province <select> — waits for the
