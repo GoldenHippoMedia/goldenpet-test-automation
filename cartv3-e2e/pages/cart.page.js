@@ -170,10 +170,16 @@ class CartPage extends BasePage {
    * Apply a coupon on /cart and capture the apply-coupon response + transient toast.
    * Endpoint: POST /commerce-service/proxy/cart/apply-coupon (404 invalid / 200 valid).
    * Returns { response, toastText }.
+   *
+   * @param {string} code
+   * @param {{toastTimeout?: number}} [opts] toastTimeout ms to wait for the transient toast
+   *   (default 6000). Pass 0 to SKIP the toast capture entirely — useful for callers that
+   *   only need the response status (e.g. the Thank You order test), where applying
+   *   AUTOTEST1 fires no matching toast and the wait is dead time.
    */
-  async applyCoupon(code) {
+  async applyCoupon(code, { toastTimeout = 6000 } = {}) {
     await this.couponCodeInput.first().fill(code);
-    await this.armToastCapture(); // arm BEFORE the click (toast is transient + retains last msg)
+    if (toastTimeout > 0) await this.armToastCapture(); // arm BEFORE the click (toast is transient + retains last msg)
     const respP = this.page.waitForResponse(
       (r) => /\/commerce-service\/proxy\/cart\/apply-coupon/.test(r.url())
         && r.request().method() === 'POST',
@@ -181,7 +187,9 @@ class CartPage extends BasePage {
     );
     await this.couponApply.click();
     const response = await respP;
-    const toastText = await this.captureToast(/coupon not found|applying|discount|success|added|removed/i, 6000);
+    const toastText = toastTimeout > 0
+      ? await this.captureToast(/coupon not found|applying|discount|success|added|removed/i, toastTimeout)
+      : null;
     console.log(`[cart] apply-coupon "${code}" → status ${response.status()} toast="${toastText}"`);
     return { response, toastText };
   }

@@ -248,6 +248,25 @@ class AccountDetailsPage extends BasePage {
     return this.optionLabels(this.billStateSelect);
   }
 
+  /** Labels of every option in the shipping Country dropdown (e.g. "United States"). */
+  async countryOptionLabels() {
+    return this.optionLabels(this.shipCountrySelect);
+  }
+
+  /**
+   * Trimmed `value` of every real COUNTRY option in the shipping Country <select>
+   * (e.g. "US|United States", "CA|Canada"). Filtered to the "<CODE>|<Name>" format
+   * so the leading placeholder option ("-Select a Country-", whose value is NOT a
+   * country code) is dropped. Used by the prod-only "country restricted to US + CAN"
+   * exclusivity check (country-options-restricted.spec.js).
+   */
+  async countryOptionValues() {
+    const values = await this.shipCountrySelect
+      .locator('option')
+      .evaluateAll((opts) => opts.map((o) => o.value));
+    return values.map((v) => v.trim()).filter((v) => /^[A-Z]{2}\|/.test(v));
+  }
+
   // ----- toast (element is ALWAYS in the DOM; empty when idle, and RETAINS its
   //       last message after dismissing — same quirk as the payments toast) -----
 

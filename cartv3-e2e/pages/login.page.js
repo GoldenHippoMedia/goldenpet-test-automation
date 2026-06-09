@@ -39,7 +39,11 @@ class LoginPage extends BasePage {
     await this.passwordInput.press('Tab');
     await this.submitButton.waitFor({ state: 'visible' });
     await this.submitButton.click();
-    await this.page.waitForURL(urlPattern, { timeout: 15000 });
+    // waitUntil: 'commit' — Angular SPA routes (e.g. /my-account) don't reliably fire
+    // the 'load' event, so the default wait can time out even after the redirect has
+    // already happened (gotcha #9). 'commit' resolves once navigation commits (URL +
+    // auth cookie set); callers do their own element-level readiness wait afterward.
+    await this.page.waitForURL(urlPattern, { timeout: 15000, waitUntil: 'commit' });
   }
 }
 
