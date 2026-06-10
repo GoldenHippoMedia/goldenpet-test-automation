@@ -21,6 +21,7 @@
       "displayName": "Dr. Marty Pets",
       "logoAltText": "Dr. Marty",
       "storeLocatorUrl": "https://store.drmartypets.com/",
+      "primaryDomain": "drmartypets.com",
       "urls": {
         "uat": {
           "base": "https://uat-int.drmartypets.com",
@@ -80,7 +81,14 @@
         "orderHistoryHeading": "Order History",
         "manageAccountHeading": "Manage Account",
         "cartEmptyText": "Your cart is empty!",
-        "cartHeaderText": "Cart"
+        "cartHeaderText": "Cart",
+        "validCoupon": "AUTOTEST1",
+        "csPhone": "1-800-670-1839",
+        "csHours": {
+          "weekday": "Mon-?Fri.*PST",
+          "weekend": "Sat-?Sun.*PST"
+        },
+        "freeShippingText": "FREE!"
       },
       "testAddress": {
         "firstName": "Golden",
@@ -100,6 +108,7 @@
       "displayName": "Badlands Ranch",
       "logoAltText": "Badlands Ranch",
       "storeLocatorUrl": "https://store.badlandsranch.com/",
+      "primaryDomain": "badlandsranch.com",
       "urls": {
         "uat": {
           "base": "https://uat-int.badlandsranch.com",
@@ -158,7 +167,14 @@
         "orderHistoryHeading": "Order History",
         "manageAccountHeading": "Manage Account",
         "cartEmptyText": "Your cart is empty!",
-        "cartHeaderText": "Cart"
+        "cartHeaderText": "Cart",
+        "validCoupon": "TODO_CONFIRM_BADLANDS_VALID_COUPON",
+        "csPhone": "TODO_CONFIRM_BADLANDS_CS_PHONE",
+        "csHours": {
+          "weekday": "TODO_CONFIRM_BADLANDS_WEEKDAY_HOURS",
+          "weekend": "TODO_CONFIRM_BADLANDS_WEEKEND_HOURS"
+        },
+        "freeShippingText": "FREE!"
       }
     }
   }

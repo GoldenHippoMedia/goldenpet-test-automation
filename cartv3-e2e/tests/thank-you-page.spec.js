@@ -40,10 +40,11 @@ test.describe('Order - Thank You Page Confirmation Display', () => {
       // guard below can name the offending endpoint + layer if the "Too many requests"
       // toast ever fires. We only console.log genuinely interesting auth/rate-limit statuses
       // (401/403/419/429) — NOT the 404 CMS misses or the benign ERR_ABORTED navigation
-      // cancellations, which were just noise. Scoped to first-party drmartypets.com (minus
-      // /builder/proxy/ CMS content) + any challenges.cloudflare.com hit.
+      // cancellations, which were just noise. Scoped to the brand's first-party domain
+      // (minus /builder/proxy/ CMS content) + any challenges.cloudflare.com hit.
+      const firstPartyRx = new RegExp('//[^/]*' + brand.primaryDomain.replace(/[.]/g, '\\.') + '/');
       const isRelevant = (url) =>
-        (/\/\/[^/]*drmartypets\.com\//.test(url) && !/\/builder\/proxy\//.test(url))
+        (firstPartyRx.test(url) && !/\/builder\/proxy\//.test(url))
         || /challenges\.cloudflare\.com/.test(url);
       const errorHits = [];
       page.on('response', (res) => {
@@ -87,24 +88,25 @@ test.describe('Order - Thank You Page Confirmation Display', () => {
       await cartPage.addProductByKey(productKey);
       for (let i = 1; i < qty; i++) await cartPage.increaseQuantity();
 
-      // Apply coupon AUTOTEST1 — BEST-EFFORT and TIME-BOUNDED. GI marks these steps
-      // optional ("in some instances the coupon code cannot be entered in UAT... making
-      // this optional to avoid false failures"), so a missing/slow apply-coupon response
-      // must never stall or fail the order path. Dismiss any popup first (it can swallow
-      // the Apply click), then cap the whole attempt at ~12s. If it doesn't apply,
+      // Apply the brand's valid coupon — BEST-EFFORT and TIME-BOUNDED. GI marks these
+      // steps optional ("in some instances the coupon code cannot be entered in UAT...
+      // making this optional to avoid false failures"), so a missing/slow apply-coupon
+      // response must never stall or fail the order path. Dismiss any popup first (it can
+      // swallow the Apply click), then cap the whole attempt at ~12s. If it doesn't apply,
       // couponApplied stays false and the discount-display assert below is skipped.
+      const validCoupon = brand.content.validCoupon;
       let couponApplied = false;
       await cartPage.dismissPopupIfPresent().catch(() => {});
       const couponVisible = await cartPage.couponInput.isVisible().catch(() => false);
       if (couponVisible) {
         const couponResp = await Promise.race([
           // toastTimeout: 0 — we only need the response status; skip the 6s toast wait
-          // (applying AUTOTEST1 on /cart fires no matching toast, so it was dead time).
-          cartPage.applyCoupon('AUTOTEST1', { toastTimeout: 0 }).then((r) => r.response).catch(() => null),
+          // (applying the coupon on /cart fires no matching toast, so it was dead time).
+          cartPage.applyCoupon(validCoupon, { toastTimeout: 0 }).then((r) => r.response).catch(() => null),
           page.waitForTimeout(12000).then(() => null),
         ]);
         couponApplied = !!couponResp && couponResp.status() === 200;
-        console.log(`[thank-you] coupon AUTOTEST1 applied=${couponApplied}`
+        console.log(`[thank-you] coupon ${validCoupon} applied=${couponApplied}`
           + (couponResp ? ` (apply-coupon status ${couponResp.status()})` : ' (no apply-coupon response — proceeding without discount)'));
       }
 

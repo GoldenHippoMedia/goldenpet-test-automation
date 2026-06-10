@@ -19,14 +19,15 @@ const { CheckoutPage } = require('../pages/checkout.page');
 //   POST /commerce-service/proxy/cart/apply-coupon  -> 404 (invalid) / 200 (valid)
 //   POST /commerce-service/proxy/cart/remove-coupon -> 200 (clear)
 
-const INVALID_COUPON = 'FAKE123INVALID';
-const VALID_COUPON = 'AUTOTEST1'; // ~$1.00 off (live-verified)
+const INVALID_COUPON = 'FAKE123INVALID'; // brand-agnostic — a code that should never exist
 const NOT_FOUND_RX = /coupon not found/i;
 
 test.describe('Checkout-V2 - Coupon Validation (guest)', () => {
   test('valid + invalid coupon behavior on both /cart and /checkout', async ({ page, brand }) => {
     const cartPage = new CartPage(page, brand);
     const checkoutPage = new CheckoutPage(page, brand);
+    // Valid coupon is brand-specific (drmarty: AUTOTEST1, ~$1.00 off) — read from config.
+    const VALID_COUPON = brand.content.validCoupon;
 
     await cartPage.addProductByKey('loggedout_std_1');
 

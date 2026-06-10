@@ -81,6 +81,9 @@ const test = base.extend({
       displayName: brandConfig.displayName,
       logoAltText: brandConfig.logoAltText,
       storeLocatorUrl: brandConfig.storeLocatorUrl,
+      // First-party domain (no scheme), e.g. 'drmartypets.com'. Used by tests that
+      // filter network traffic to first-party requests. Brand-specific.
+      primaryDomain: brandConfig.primaryDomain,
       env,
       baseUrl: envUrls.base,
       paths: envUrls,

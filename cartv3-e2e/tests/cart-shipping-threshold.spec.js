@@ -11,6 +11,9 @@ test.describe('Cart - Shipping Threshold', () => {
   test('products under threshold have shipping fee, over threshold get free shipping', async ({ page, brand }) => {
     const cartPage = new CartPage(page, brand);
     const shippingFeeVariant = brand.testProducts.loggedout_add_shipping_fee;
+    // Free-shipping display value is brand/locale-specific (drmarty shows "FREE!" on
+    // checkout for an over-threshold cart; a CAD/other-locale brand may differ).
+    const freeShippingText = brand.content.freeShippingText || 'FREE!';
 
     // Skip if no shipping-fee product is configured for this brand
     test.skip(!shippingFeeVariant || shippingFeeVariant === 'N/A', 'No shipping-fee product configured');
@@ -30,7 +33,7 @@ test.describe('Cart - Shipping Threshold', () => {
 
     // Verify shipping fee is NOT free on checkout
     await expect(shippingValue).toBeVisible();
-    await expect(shippingValue).not.toContainText('$0.00');
+    await expect(shippingValue).not.toContainText(freeShippingText);
     await expect(shippingValue).not.toContainText('FREE');
 
     // --- Product OVER $50 (should have free shipping) ---
@@ -43,7 +46,7 @@ test.describe('Cart - Shipping Threshold', () => {
     await cartPage.checkoutAsGuestButton.click();
     await page.waitForURL(/checkout/, { timeout: 15000 });
 
-    // Verify shipping is free ($0.00) on checkout
-    await expect(shippingValue).toContainText('$0.00');
+    // Verify shipping is free on checkout (drmarty: "FREE!")
+    await expect(shippingValue).toContainText(freeShippingText);
   });
 });

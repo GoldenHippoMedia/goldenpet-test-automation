@@ -9,12 +9,16 @@ const { CheckoutPage } = require('../pages/checkout.page');
 //
 // Live audit (2026-06-08): the header is <linkless-page-header id="page-header">
 // with NO data-qa (TODO: ask team). It contains the brand logo
-// (img[alt="Brand Logo"]), the CS phone number (1-800-670-1839 — rendered as text,
-// not a tel: link), and two CS-hours lines ("Mon-Fri 6am-5pm PST",
+// (img[alt="Brand Logo"]), the CS phone number (drmarty: 1-800-670-1839 — rendered
+// as text, not a tel: link), and two CS-hours lines (drmarty: "Mon-Fri 6am-5pm PST",
 // "Sat-Sun 6am-4pm PST").
 //
 // Hardened beyond the GI text-presence checks: asserts the logo actually RENDERED
-// (naturalWidth > 0), a phone-number pattern, and BOTH hours lines.
+// (naturalWidth > 0), the brand's CS phone, and BOTH hours lines.
+//
+// The phone, weekday-hours pattern, and weekend-hours pattern are BRAND-SPECIFIC
+// (timezone/schedule/number differ per brand) and read from site-config.json via
+// brand.content.{csPhone,csHours}. PHONE_RX below is a brand-agnostic fallback only.
 //
 // NOTE: the GI also clicked Terms & Privacy ("Footer Links Check"); that link
 // coverage already lives in cart-terms-and-privacy-links.spec.js (checkout block),
@@ -22,6 +26,7 @@ const { CheckoutPage } = require('../pages/checkout.page');
 //
 // Guest, read-only -> out of @real-order.
 
+// Fallback when a brand has no csPhone configured — generic phone-number shape.
 const PHONE_RX = /\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/;
 
 test.describe('Checkout-V2 - Header: Phone, CS Hours, Logo (guest)', () => {
@@ -40,11 +45,16 @@ test.describe('Checkout-V2 - Header: Phone, CS Hours, Logo (guest)', () => {
     const logoRendered = await checkoutPage.headerLogo.evaluate((img) => img.complete && img.naturalWidth > 0);
     expect(logoRendered, 'header logo image should be loaded, not broken').toBe(true);
 
-    // CS phone number (text, not a link).
-    await expect(checkoutPage.pageHeader, 'header should show a CS phone number').toContainText(PHONE_RX);
+    // CS phone number (text, not a link). Brand-specific number from config; fall
+    // back to a generic phone shape if the brand has no csPhone configured.
+    const expectedPhone = brand.content.csPhone || PHONE_RX;
+    await expect(checkoutPage.pageHeader, 'header should show a CS phone number').toContainText(expectedPhone);
 
-    // Both CS-hours lines.
-    await expect(checkoutPage.pageHeader.getByText(/Mon-?Fri.*PST/i), 'weekday hours line').toBeVisible();
-    await expect(checkoutPage.pageHeader.getByText(/Sat-?Sun.*PST/i), 'weekend hours line').toBeVisible();
+    // Both CS-hours lines — brand-specific (timezone/schedule differ per brand).
+    const csHours = brand.content.csHours || {};
+    const weekdayRx = new RegExp(csHours.weekday || 'Mon-?Fri.*PST', 'i');
+    const weekendRx = new RegExp(csHours.weekend || 'Sat-?Sun.*PST', 'i');
+    await expect(checkoutPage.pageHeader.getByText(weekdayRx), 'weekday hours line').toBeVisible();
+    await expect(checkoutPage.pageHeader.getByText(weekendRx), 'weekend hours line').toBeVisible();
   });
 });
