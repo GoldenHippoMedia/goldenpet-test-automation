@@ -1,5 +1,6 @@
 const { test, expect } = require('../fixtures/brand');
 const { CartPage } = require('../pages/cart.page');
+const { parseMoney } = require('../helpers/parse-money');
 
 // GI: "Cart - (Shipping Threshold) Add Products with Added Shipping and
 //      Free Shipping (Mike)"
@@ -46,7 +47,10 @@ test.describe('Cart - Shipping Threshold', () => {
     await cartPage.checkoutAsGuestButton.click();
     await page.waitForURL(/checkout/, { timeout: 15000 });
 
-    // Verify shipping is free on checkout (drmarty: "FREE!")
-    await expect(shippingValue).toContainText(freeShippingText);
+    // Verify shipping is free on checkout. The label is env/locale-specific —
+    // prod renders "$0.00" (class free-text), UAT may render "FREE!" — so assert
+    // the value parses to $0 either way rather than matching the literal word.
+    await expect(shippingValue).toBeVisible();
+    await expect.poll(async () => parseMoney(await shippingValue.textContent())).toBe(0);
   });
 });

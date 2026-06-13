@@ -17,11 +17,13 @@ class MyAccountPage extends BasePage {
     this.updateProfileLink        = page.getByRole('link', { name: /update profile and shipping address/i });
 
     // --- My Recent Orders section ---
-    this.firstOrderLink        = page.locator('a').filter({ hasText: /ORD-\d+/ }).first();
+    // Order ID renders as a <button> (not an <a>) on prod; accept either so the
+    // clickable order link resolves on both envs.
+    this.firstOrderLink        = page.locator('a, button').filter({ hasText: /ORD-\d+/ }).first();
     this.reorderViewDetailsBtn = page.locator('a, button').filter({ hasText: /reorder and view order details/i }).first();
 
     // --- My Subscriptions section ---
-    this.firstSubscriptionLink  = page.locator('a').filter({ hasText: /SSC-/ }).first();
+    this.firstSubscriptionLink  = page.locator('a, button').filter({ hasText: /SSC-/ }).first();
     this.manageSubscriptionsBtn = page.locator('a, button').filter({ hasText: /manage subscriptions/i }).first();
   }
 
