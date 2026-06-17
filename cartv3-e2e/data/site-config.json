@@ -101,7 +101,8 @@
         "phone": "5555555555"
       },
       "testAccountIds": {
-        "uat": "0010m00000WW1zDAAT"
+        "uat": "0010m00000WW1zDAAT",
+        "prod": "0010H00002hY0fCQAS"
       }
     },
     "badlands": {

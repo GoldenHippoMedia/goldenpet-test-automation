@@ -110,7 +110,10 @@ test.describe('Pet Profiles - Create New Profile', () => {
     // Response body: backend echoes what was saved (every field shown on /pets card)
     const created = await createResp.json();
     createdPetId = created.id;
-    expect(created.id, 'response should include a Salesforce pet id (a1D*)').toMatch(/^a1D/);
+    // Pet Profiles are a Salesforce custom object; the 3-char key prefix is
+    // org-specific (UAT sandbox "a1D", prod "a1K"), so assert the general
+    // 18-char custom-object id shape (leading "a") rather than a hardcoded prefix.
+    expect(created.id, 'response should include a Salesforce pet id (a-prefixed 18-char)').toMatch(/^a[A-Za-z0-9]{17}$/);
     expect(created.name).toBe(inputs.name);
     expect(created.profileType).toBe(inputs.type);
     expect(created.sex).toBe(inputs.sex);

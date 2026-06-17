@@ -99,6 +99,13 @@ class OrderHistoryPage extends BasePage {
           if (!qtyMatch) return null; // not a product row
           const name = row.querySelector('b')?.textContent.trim();
           if (!name) return null;
+          // Some orders (seen on prod) include non-product promo lines rendered
+          // as product-shaped rows — a "FREE SHIPPING" line carries a Quantity
+          // marker and a <b> name but no product image. Skip these known
+          // non-catalog labels so the image/identity checks only run on real
+          // products. Anchored to the full name so real products that merely
+          // contain these words aren't dropped.
+          if (/^(free\s+shipping|shipping|discount|free\s+gift)$/i.test(name)) return null;
           const priceText = ps.find((t) => /^[-]?\$[\d,.]+(?:\s*CAD)?$/.test(t)) || null;
           const img = row.querySelector('img');
           return {

@@ -87,6 +87,14 @@ test.describe('Pet Profiles - Edit Existing Profile', () => {
     await expect(page).toHaveTitle(/Edit Pet Profile/i);
     await petsPage.nameInput.waitFor({ state: 'visible' });
 
+    // Wait for the form to finish hydrating with the pet's saved data BEFORE
+    // editing. The populate GET lands after initial render (more noticeably on
+    // prod); if we fill first, that populate overwrites our input back to the
+    // setup values — leaving the form pristine, so the Save click fires no PUT
+    // and the waitForResponse below times out. Gate on the name field showing
+    // the setup name to confirm hydration completed.
+    await expect(petsPage.nameInput).toHaveValue(originalName, { timeout: 10000 });
+
     // --- Edit every editable field (flipped/randomized vs setup) ---
     await petsPage.nameInput.fill(editedName);
     const newSexRadio = NEW_SEX === 'Female' ? petsPage.femaleRadio : petsPage.maleRadio;

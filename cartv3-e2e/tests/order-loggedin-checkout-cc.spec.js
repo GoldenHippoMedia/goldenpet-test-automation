@@ -35,6 +35,28 @@ test.describe('Order - Logged-In Checkout with Saved Credit Card', () => {
       const checkoutPage     = new CheckoutPage(page, brand);
       const confirmationPage = new OrderConfirmationPage(page, brand);
 
+      // Diagnostic (quiet): capture first-party >=400 responses so the rate-limit guard
+      // below can name the offending endpoint + layer if "Too many requests" fires.
+      // Scoped to the brand's first-party domain (minus /builder/proxy/ CMS) + any
+      // challenges.cloudflare.com hit. Only auth/rate-limit statuses are logged.
+      const firstPartyRx = new RegExp('//[^/]*' + brand.primaryDomain.replace(/[.]/g, '\\.') + '/');
+      const isRelevant = (url) =>
+        (firstPartyRx.test(url) && !/\/builder\/proxy\//.test(url))
+        || /challenges\.cloudflare\.com/.test(url);
+      const errorHits = [];
+      page.on('response', (res) => {
+        const url = res.url();
+        const s = res.status();
+        if (s >= 400 && isRelevant(url)) {
+          const h = res.headers();
+          const layer = (h['cf-ray'] || /cloudflare/i.test(h['server'] || '')) ? 'Cloudflare/edge (DevOps)' : 'origin/app (dev/backend)';
+          errorHits.push({ url, status: s, layer, server: h['server'] || '(none)', cfRay: h['cf-ray'] || '(none)' });
+          if ([401, 403, 419, 429].includes(s)) {
+            console.log(`[checkout-cc] HTTP ${s} ← ${url} | layer=${layer} | cf-ray=${h['cf-ray'] || '(none)'}`);
+          }
+        }
+      });
+
       // 1. Login
       await loginPage.goto();
       await loginPage.login();
@@ -55,8 +77,9 @@ test.describe('Order - Logged-In Checkout with Saved Credit Card', () => {
       await cartPage.changeShippingLink.click();
       await page.waitForURL(/\/checkout/, { timeout: 15000, waitUntil: 'commit' });
 
-      // 5. Wait for the checkout page to be interactive. For logged-in users with a saved card,
-      //    the Submit Order button should render without needing to toggle "Or pay with credit card".
+      // 5. Wait for the checkout page to be interactive. For a logged-in user with a
+      //    saved card, Submit Order enables on its own (confirmed manually on prod —
+      //    no "Or pay with credit card" toggle needed).
       const submitOrderBtn = page.locator('[data-qa="submit-order-btn"]');
       await submitOrderBtn.waitFor({ state: 'visible', timeout: 30000 });
 
@@ -66,7 +89,39 @@ test.describe('Order - Logged-In Checkout with Saved Credit Card', () => {
       // Cart → checkout: subtotal must agree
       assertSnapshotsAgree(cartSnap, checkoutSnap, 'cart', 'checkout', ['subtotal']);
 
-      // 7. Click Submit Order on /checkout
+      // 7. Submit Order on /checkout. This path can be gated by a Cloudflare edge
+      //    rate-limit/challenge that surfaces a "Too many requests" toast and leaves
+      //    Submit Order disabled (see CLAUDE.md — DevOps TODO). That degraded,
+      //    rate-limited state is also what made automation see a PayPal-first-looking,
+      //    greyed-out checkout that a manual user does NOT hit. Fail fast with a named
+      //    diagnostic instead of a vague disabled-button timeout. The order PATH itself
+      //    is verified by order-loggedin-cart-cc (submits from /cart, sidestepping this).
+      const rateLimitToast = page.locator('text=/too many requests/i').first();
+      const buildRateLimitError = () => {
+        const recent = errorHits.slice(-5);
+        const source = recent.length
+          ? '\n  → recent >=400 responses (newest last):'
+            + recent.map((h) => `\n     • HTTP ${h.status} ${h.url} | layer=${h.layer} (server="${h.server}", cf-ray="${h.cfRay}")`).join('')
+          : '\n  → (no >=400 response captured)';
+        return new Error(
+          'Blocked by a "Too many requests" toast — a Cloudflare edge rate-limit/challenge '
+          + 'on /checkout (see CLAUDE.md). This is a SERVER-side limit the test cannot bypass:'
+          + source
+          + '\n  Fix: DevOps allow-lists QA traffic (QA UA / secret header) on the rate-limit '
+          + 'rule for the checkout & order */proxy/* endpoints. Meantime: space out @real-order '
+          + 'runs, or run from a different IP. The order path is covered by order-loggedin-cart-cc.'
+        );
+      };
+
+      // Wait for Submit to enable; bail fast if the rate-limit toast appears.
+      const submitDeadline = Date.now() + 30000;
+      while (Date.now() < submitDeadline) {
+        if (await rateLimitToast.isVisible().catch(() => false)) throw buildRateLimitError();
+        if (await submitOrderBtn.isEnabled().catch(() => false)) break;
+        await page.waitForTimeout(500);
+      }
+      if (await rateLimitToast.isVisible().catch(() => false)) throw buildRateLimitError();
+      await expect(submitOrderBtn, 'Submit Order should be enabled on /checkout').toBeEnabled();
       await submitOrderBtn.click();
 
       // 8. Wait for /order-confirmation, declining upsells along the way
