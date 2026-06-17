@@ -69,11 +69,31 @@ remove-modal confirm/cancel buttons do NOT (→ `aria-label` fallback + a logged
 - `.js` files only, never `.ts`
 - This is intentional and should NOT be changed.
 
-### 5. Run mode: HEADED ONLY currently
-- `--headed` is required for tests to pass on prod
-- Headless mode is blocked by bot protection on the site (cart API never returns the product list)
-- In Playwright UI mode (`npm run test:ui`) use the "Show browser" toggle instead of hardcoding headed
-- No test code changes needed when bot protection gets whitelisted later — just drop `--headed`
+### 5. Run mode: HEADLESS is the default (verified UAT + prod, 2026-06-17)
+- **Headless works** on BOTH UAT and prod — the `QA_UA_TOKEN` UA allow-list (see
+  `playwright.config.js`) clears Cloudflare bot protection in headless just as in headed.
+  Diagnosed 2026-06-17: the cart `commerce-service/proxy/cart/*` + `payment-service` APIs
+  return **200 headless** on both envs, with **no `cf-mitigated` header, no 403/429**. The
+  old "HEADED ONLY" rule predated the token allow-list (added 2026-06-05) and is obsolete.
+- **Headedness is orthogonal — chosen at run time, NOT baked into scripts.**
+  `playwright.config.js` sets `headless: !process.env.HEADED`, so **every** npm script (incl.
+  `@real-order`, UAT and prod) defaults to headless and can be watched on demand by prefixing
+  `HEADED=1` (or appending `--headed`, which also wins). The only deliberately-headed entries
+  are the `cartv3:*:headed` aliases and `cartv3:debug`. In UI mode (`npm run test:ui`) use the
+  "Show browser" toggle.
+  ```bash
+  npm run cartv3:order:loggedin-cart-cc:uat            # headless
+  HEADED=1 npm run cartv3:order:loggedin-cart-cc:uat   # same script, headed
+  ```
+- UAT orders are **Braintree SANDBOX** (no real money — always safe to run, headed or
+  headless). Real-card orders happen on **prod** only. Independent of headedness, prod
+  `@real-order` placement faces the separate Cloudflare **rate-limit** (see Backlog) — a
+  velocity gate, not a bot/headless gate.
+- Headless still leaks fingerprint tells (`Sec-CH-UA`/`navigator.userAgentData` exposes
+  `HeadlessChrome`; `window.chrome` absent; WebGL = software SwiftShader). CF currently
+  ignores them because the UA-token rule is a skip-rule evaluated ahead of fingerprinting.
+  If a future CF rule change starts blocking headless, that's the likely vector — the ask
+  to DevOps would be to keep the `DrMartyQA/<token>` skip covering those API paths.
 
 ---
 
@@ -668,9 +688,12 @@ back-compat; new specs use the data-qa table above.
 - Privacy: `legal.<brand>.com/privacy`
 - Privacy Choices: `<brand>.com/your-privacy-choices` (main domain, NOT legal subdomain)
 
-### 6. Headless mode is blocked by bot protection
-- `--headed` required for prod; use "Show browser" toggle in UI mode
-- Tried: user agent override, webdriver injection, Chrome channel — none worked
+### 6. Headless works now (was blocked by bot protection pre-token) — see Architecture §5
+- **RESOLVED 2026-06-17.** Headless passes on UAT + prod via the `QA_UA_TOKEN` UA allow-list.
+- The old "tried UA override / webdriver injection / Chrome channel, none worked" notes were
+  from BEFORE DevOps allow-listed the `DrMartyQA/<token>` UA (2026-06-05). A *bare* UA
+  override didn't work; the *allow-listed token* does, headless included. (The webdriver
+  stealth init script in `fixtures/brand.js` is still present and harmless.)
 
 ### 7. Real-order tests
 - Tagged `@real-order` — excluded from standard runs, use `cartv3:real-orders:*` scripts
@@ -990,7 +1013,7 @@ Money parsing: `parseMoney("$179.85")` → `179.85`, `parseMoney("Free")` → `0
 | Click does nothing | Popup overlay | `dismissPopupIfPresent()` |
 | `waitForURL(/cart/)` matches login page | Login URL has "cart" in query | `url => !url.toString().includes('/login')` |
 | `waitForURL` times out | Angular pending XHRs | `{ waitUntil: 'commit' }` |
-| Test passes headed, fails headless | Bot protection | Run `--headed` |
+| Cart product list never loads (headless or headed) | Cloudflare bot block — `QA_UA_TOKEN` missing/not allow-listed for this zone | Ensure `QA_UA_TOKEN` is set in `.env` and allow-listed on the env's CF zone (headless itself is fine — verified UAT + prod 2026-06-17) |
 | XPath `text()="X"` finds nothing | Angular comment nodes | `normalize-space(text())="X"` |
 | Submit Order stays disabled after CC fill | Braintree needs keydown | `pressSequentially()` not `fill()` |
 | Intermittent `12//26` expiry | Slash collision | Strip `/` from expiry before typing |

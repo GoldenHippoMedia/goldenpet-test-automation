@@ -28,6 +28,11 @@ module.exports = defineConfig({
     timeout: 15000,
   },
   use: {
+    // Headless is the default — the QA_UA_TOKEN UA allow-list (below) clears Cloudflare
+    // bot protection in headless on BOTH UAT and prod (verified 2026-06-17: cart
+    // commerce-service APIs return 200 headless, no cf-mitigated/403/429). To WATCH a
+    // run in a real browser window, set HEADED=1 (or pass --headed, which also wins).
+    headless: !process.env.HEADED,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     launchOptions: {
