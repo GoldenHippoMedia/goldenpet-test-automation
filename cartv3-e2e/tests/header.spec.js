@@ -76,7 +76,13 @@ test.describe(`Header Navigation - ${process.env.BRAND || 'drmarty'}`, () => {
     await headerPage.subscriptionsLink.click();
     await page.waitForLoadState('domcontentloaded');
     await expect(page).toHaveURL(/subscription-edit/);
-    await expect(page.getByText('Skip next order').first()).toBeVisible();
+    // The subscription editor has no heading. Assert a stable, desktop-visible
+    // landmark: the [data-qa="subscription-select"] picker that renders for the
+    // account's active subscription. (Do NOT use getByText('Skip next order') —
+    // that control now lives only inside <mobile-sticky-footer-v2>, which is
+    // `lg:hidden` / display:none at desktop viewport widths, so it is present-
+    // but-hidden by design on the desktop viewport Playwright runs at.)
+    await expect(page.locator('[data-qa="subscription-select"]')).toBeVisible();
 
     // --- Account Dropdown: Contact Us ---
     await headerPage.openAccountDropdown();

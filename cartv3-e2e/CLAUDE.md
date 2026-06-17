@@ -555,7 +555,7 @@ npm run report
 | /pets | No heading — use `page.toHaveTitle(/Pet Profile/)` |
 | /account-details | `h1` "Manage Account" |
 | /order-history | `h6` "Order History" — use `getByText` |
-| /subscription-edit | No heading — use `getByText('Skip next order')` |
+| /subscription-edit | No heading — use `[data-qa="subscription-select"]` (the active-subscription picker). **Do NOT use `getByText('Skip next order')`** — that control now lives only inside `<mobile-sticky-footer-v2>` (`lg:hidden` → `display:none` at desktop widths), so it's present-but-hidden on the desktop viewport. Audited live 2026-06-17; other desktop-visible data-qa: `last-order-date`, `next-order-date`, `delivery-payment-btn`, `subscription-name`, `subscription-price`; the "Delivery and payment" expansion adds `subscription-edit-close-btn`, `subtotal-{original,new}`, `tax`, `shipping`, `grand-total`, `frequence-toggle`, `paypal-method-display`, `update-btn`, `cancel-btn`. |
 
 ### Checkout Page (/checkout) — data-qa audited 2026-06-08
 
