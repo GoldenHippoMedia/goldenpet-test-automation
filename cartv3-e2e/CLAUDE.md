@@ -122,7 +122,9 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
     ├── helpers/
     │   ├── parse-money.js       # "$179.85" → 179.85, "Free" → 0, "TBD" → null
     │   ├── order-validations.js # reusable assertion functions for order tests
-    │   └── pet-profile-api.js   # pets create/remove/list via API (page.evaluate fetch + CSRF headers)
+    │   ├── pet-profile-api.js   # pets create/remove/list via API (page.evaluate fetch + CSRF headers)
+    │   ├── subscription-api.js  # subscriptions GET via API (page.evaluate fetch + CSRF headers) — list/round-trip
+    │   └── subscription-dates.js # date helpers for subscription specs (ISO add-days, display-date compare)
     ├── pages/
     │   ├── base.page.js         # popup dismissal logic
     │   ├── login.page.js
@@ -135,7 +137,8 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
     │   ├── my-account.page.js
     │   ├── order-history.page.js # /order-history list + card snapshots
     │   ├── pets.page.js         # /pets + /pets/create + /pets/edit form & list
-    │   └── payment-details.page.js # /payment-details — add-card form + saved-card list
+    │   ├── payment-details.page.js # /payment-details — add-card form + saved-card list
+    │   └── subscription-edit.page.js # /subscription-edit + /subscription-cancellation — skip/ship/update/cancel
     └── tests/                   # flat — all CartV3 specs here, no CartV3/ subfolder
         ├── login.spec.js
         ├── header.spec.js
@@ -173,7 +176,12 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
         ├── checkout-header-display.spec.js          # ✅ verified green here — logo/phone/CS-hours (guest)
         ├── checkout-country-state.spec.js           # ✅ verified green here — US/CAN country→state + intl zip (guest, data-driven)
         ├── checkout-prepopulate.spec.js             # ✅ verified green here — logged-in customer+shipping pre-populate
-        └── country-options-restricted.spec.js       # ✅ verified green on PROD (skips UAT) — Country dropdown = exactly US + CAN (/account-details + /checkout)
+        ├── country-options-restricted.spec.js       # ✅ verified green on PROD (skips UAT) — Country dropdown = exactly US + CAN (/account-details + /checkout)
+        ├── subscription-skip-next-order.spec.js     # ⏳ ported, pending verification — skip + self-heal (UAT + prod)
+        ├── subscription-update-next-order-date.spec.js # ⏳ ported, pending verification — edit next-order date + self-heal (UAT + prod); finishes GI's unfinished 🚧 test
+        ├── subscription-update-quantity.spec.js     # ⏳ ported, pending verification — change qty + self-heal (UAT + prod)
+        ├── subscription-ship-now.spec.js            # ⏳ ported, pending verification — Ship Now + self-heal date (UAT + prod; places HQ-suppressed order on prod)
+        └── subscription-cancel.spec.js              # ⏳ ported, pending verification — cancel a disposable sub (UAT-only, @real-order)
 ```
 
 ---
@@ -449,6 +457,48 @@ Thank You Page (1)
   NOTE: net-new vs the order-placement specs is the upsell-acceptance path + the
   discount/upsell-order-ID display + cart→TY product/email identity; the core confirmation
   asserts overlap with `order-loggedin-checkout-cc.spec.js` (kept — dedicated DISPLAY test).
+
+Subscription Management — ⏳ all ported (pending verification here, 2026-06-17)
+The 6 GI "Subscriptions - *" tests (the extra batch beyond the initial migration) become
+**5 specs** on the `/subscription-edit` editor (the GMD `/sub-history` "Ship Now" variant
+is intentionally dropped — that brand is retired; DMP/BLR use the `/subscription-edit` UI).
+All are brand-agnostic (platform app-builder `data-qa`) and backed by the new
+`pages/subscription-edit.page.js`, `helpers/subscription-api.js`, and
+`helpers/subscription-dates.js`. Live `data-qa` + behavior audit done 2026-06-17 (see the
+"Subscription Editor" selector reference below). npm: `cartv3:subscription:{all,skip,next-date,quantity,ship-now}:{uat,prod}` + `cartv3:subscription:cancel:uat`.
+
+- `subscription-skip-next-order.spec.js` — GI: "Skip Next Order". Existing sub; snapshot
+  date → "Skip next order" → assert the post-skip summary date == the date the confirm
+  modal promised (`[data-qa="next-date"]`) + the skip write is 2xx + backend still active
+  → **self-heal** the date back. **UAT + prod** (GI was EXCLUDE-PROD only because it
+  placed a sub; self-heal removes that need).
+- `subscription-update-next-order-date.spec.js` — GI: "Next Order Date" (which was
+  UNFINISHED in GI — 🚧, exited before its write ran). **Finished here:** expand Delivery
+  Frequency → set the editable `input[type=date][data-qa="next-order-date"]` → Update →
+  assert UI + backend round-trip → self-heal restore. **UAT + prod**.
+- `subscription-update-quantity.spec.js` — GI: "Update Quantity". Change `select#quantityId`
+  → Update → assert UI + backend → self-heal restore qty. **UAT + prod**.
+- `subscription-ship-now.spec.js` — GI: "Ship Now Button" (non-GMD). Find a sub whose
+  "Ship Now!" is available (skip-pass if none, like GI), ship it, assert the success popup
+  + the next-order date advanced + write 2xx → self-heal date. **UAT + prod.** ⚠️ Ship Now
+  places a REAL order on prod (fulfillment suppressed for the QA HQ address per backend
+  automation — that's why prod is allowed); it's the only spec here that places an order
+  on prod. Gate with `test.skip(brand.env === 'prod')` if that ever changes.
+- `subscription-cancel.spec.js` — GI: "Cancel Subscription". Cancel is an irreversible
+  soft-delete, so it can't self-heal an existing sub: it places a **throwaway** sub
+  (`loggedin_sub_2`), cancels THAT (Cancel Subscription Box → `/subscription-cancellation`
+  → pick "ANOTHER REASON - CANCEL NOW" reason-toggle → "I still want to cancel"), and
+  asserts it drops from the active list (UI) + backend GET (`active:false`). Because it
+  places a real (card-charging) order, it stays **UAT-only** + `@real-order` (GI: EXCLUDE
+  PROD). `afterEach` safety-cancels a stray sub if the test died before cancelling.
+
+> **First-run TODOs (pin once green):** (1) the exact subscription WRITE endpoint sub-paths
+> (skip/ship/update/cancel) are logged by `SubscriptionEditPage.waitForSubscriptionWrite()`
+> — assertions currently key off method + 2xx, not the path; (2) the subscriptions record's
+> field names (nextOrderDate / quantity / active) are logged by
+> `subApi.logSubscriptionShape()` — tighten the backend field-level asserts (right now the
+> backend check is active-list membership). Both are intentionally path/shape-tolerant so a
+> first run can't red-fail on an unconfirmed contract.
 
 > When a test is verified green in this repo, move it to a "Verified here" section above.
 
@@ -960,6 +1010,51 @@ No `data-qa` on cards or buttons yet — TODO: flag to team. All selectors are c
 | Card date | `<p>` matching `/^\d{2}\/\d{2}\/\d{4}$/` (e.g. "06/02/2026") |
 | Card payment method | `<p>` after the "Payment Method" label; matches `/^(Card Ending in \d{4}\|PayPal)$/` |
 | Card totals | `<p>` text like `"Total $107.01"`, `"Subtotal $97.50"`, `"Sales Tax $9.51"`, `"Shipping $0.00"`. CAD orders include ` CAD` suffix and a `(w/GST)` qualifier on Total — strip both before `parseMoney` |
+
+### Subscription Editor (/subscription-edit + /subscription-cancellation) — data-qa audited 2026-06-17
+
+Platform app-builder UI (shared across non-GMD brands). The page loads a
+`select[data-qa="subscription-select"]` of every ACTIVE sub (option text
+"Subscription #SSC-#####", option **value = the Salesforce id** e.g. `a0WQL000009C76z2AC`);
+selecting one renders that sub's summary client-side. "Delivery and payment"
+(`delivery-payment-btn`) opens the edit panel (`<subscription-edit-confirmation-panel>`).
+
+| What | Selector |
+|------|----------|
+| Subscription selector | `select[data-qa="subscription-select"]` (value = SF id; label has `SSC-#####`) |
+| Last / Next order date (DISPLAY) | `[data-qa="last-order-date"]` / `div[data-qa="next-order-date"]` ("21 Jun 2026") |
+| Next order date (EDITABLE) | `input[data-qa="next-order-date"]` (`type=date`, ISO value) — **inside the expanded Delivery-Frequency section**; SAME data-qa as the display div, so scope by `div`/`input` |
+| Ship Now button | `[data-qa="ship-next-order-now-btn"]` ("Ship Now!") |
+| Skip Next Order button | `[data-qa="skip-next-order-btn"]` |
+| Delivery & Payment expander | `[data-qa="delivery-payment-btn"]` |
+| Frequency expander / select | `[data-qa="frequence-toggle"]` (sic) / `[data-qa="frequency-select"]` (Every week … Every year) |
+| Quantity select | `select#quantityId` — **NO data-qa** (GI's `quantity-select` is gone; TODO: ask team). Blank 1st option, then "N - $X.XX / unit" |
+| Payment select / manage link | `[data-qa="payment-select"]` / `[data-qa="payment-options-link"]` |
+| Ship-to name/address/zip; change link | `[data-qa="ship-to-name"/"ship-to-address"/"ship-to-zipcode"]`, `[data-qa="change-shipping-address-link"]` |
+| Order summary | `[data-qa="subtotal-original"/"subtotal-new"/"tax"/"shipping"/"grand-total"]` |
+| Update / Cancel box; close | `[data-qa="update-btn"]` / `[data-qa="cancel-btn"]` ("Cancel Subscription Box") / `[data-qa="subscription-edit-close-btn"]` |
+| Sub name (in panel) / image / price / savings | `[data-qa="subscription-name"/"subscription-image"/"subscription-price"/"subscription-savings"]` |
+| **Skip modal** | container `[data-qa="skip-next-order-modal"]`; `skip-date` (current) → `next-date` (skips to); `skip-confirm-btn` / `skip-cancel-btn` |
+| **Ship Now modal** | container `[data-qa="ship-order-now-modal"]`; `ship-confirm-btn` ("Yes, Ship Now") / `ship-cancel-btn` ("No Thanks"). Success popup ("You're all set!"/"Order Confirmed") has **no data-qa** — matched by copy + a `mat-icon` close (TODO) |
+| **Cancellation page** (`/subscription-cancellation/{sfId}`) | `subscription-id` (SSC), `next-ship-date`; reason accordions `[data-qa="reason-toggle"]` (one per reason; expand "ANOTHER REASON - CANCEL NOW" — Builder copy, brand-configurable via `brand.content.cancelReason`); final confirm REUSES `[data-qa="cancel-btn"]` ("I still want to cancel") |
+
+**Behavior gotchas (audited):**
+- **No agree-checkbox / no "Review and finalize" step** — GI's `.checkbox > mat-icon` and
+  the separate review click are GONE. Making any valid change (qty/date/frequency/payment)
+  ENABLES `update-btn` directly; click it to write. (A *synthetic* JS change won't dirty
+  the Angular form — Playwright's `selectOption`/`fill` does, so `update-btn` enables.)
+- **Two `data-qa="next-order-date"` elements** — the summary `<div>` (display) and the
+  editable `<input type=date>` (in the expanded frequency section). Never use a bare
+  `[data-qa="next-order-date"]` — scope with `div`/`input`.
+- **Mutation API:** every write (skip/ship/update/cancel) is a non-GET to
+  `/account-service/proxy/subscription(s)/...`; the read is `GET
+  /account-service/proxy/subscriptions/{accountId}` (accountId = `brand.testAccountId`,
+  same as Pets). Exact write sub-paths + the record field names are logged on first run
+  (see the "First-run TODOs" note in Migration Status).
+- **Self-heal:** skip/ship advance the next-order date; update-date/qty mutate the sub.
+  The specs snapshot and RESTORE (afterEach safety net), so prod runs leave the shared
+  account net-zero — same discipline as the account-update specs. (Serial execution —
+  `workers:1` — means no cross-spec collision on a shared sub.)
 
 ### PDP (Product Detail Page) — live-verified
 

@@ -89,7 +89,8 @@
           "weekend": "Sat-?Sun.*PST"
         },
         "freeShippingText": "FREE!",
-        "subscriptionTermsUrl": "subscription_terms"
+        "subscriptionTermsUrl": "subscription_terms",
+        "cancelReason": "another reason"
       },
       "testAddress": {
         "firstName": "Golden",

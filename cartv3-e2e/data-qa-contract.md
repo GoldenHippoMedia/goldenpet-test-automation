@@ -7,7 +7,9 @@ renamed or removed in the app breaks a test here** until the matching page
 object is updated. Diffing app-side renames against this list surfaces the
 test-impacting ones up front instead of discovering them after deploy.
 
-**Last regenerated:** 2026-06-12 (against `main`)
+**Last regenerated:** 2026-06-12 (against `main`). **Amended 2026-06-17** with the
+subscription-editor `data-qa` (see the "Subscription editor" block at the bottom — fold
+those into the main alphabetical list on the next full regenerate).
 
 ## How to regenerate
 
@@ -37,6 +39,7 @@ grep -rhoE '"qa"[[:space:]]*:[[:space:]]*"[^"]+"' data/ | sed -E 's/.*"qa"[[:spa
 | Page object | `data-qa` locators |
 |---|---|
 | `checkout.page.js` | 40 |
+| `subscription-edit.page.js` | 34 (added 2026-06-17) |
 | `cart.page.js` | 29 |
 | `account-details.page.js` | 25 |
 | `pets.page.js` | 7 |
@@ -127,3 +130,55 @@ tax
 toast-message
 total
 ```
+
+## Subscription editor (`/subscription-edit` + `/subscription-cancellation`) — added 2026-06-17
+
+`data-qa` the subscription specs (`subscription-skip-next-order`,
+`subscription-update-next-order-date`, `subscription-update-quantity`,
+`subscription-ship-now`, `subscription-cancel`) depend on, via
+`pages/subscription-edit.page.js`. Live-audited 2026-06-17 (UAT, drmarty).
+
+> **Not data-qa (fallbacks — flag to app team):** the quantity control is
+> `select#quantityId` (no data-qa — GI's `quantity-select` is gone); the ship-now
+> success popup ("You're all set!") has no stable data-qa (matched by copy + a
+> `mat-icon` close).
+
+```
+cancel-btn                     (REUSED: "Cancel Subscription Box" trigger AND the final
+                                "I still want to cancel" confirm on the cancellation page)
+change-shipping-address-link
+delivery-payment-btn
+frequence-toggle               (sic — "frequence", not "frequency")
+frequency-select
+grand-total
+last-order-date
+next-date                      (skip modal: the date it skips TO)
+next-order-date                (TWO elements share this: summary <div> + editable <input type=date>)
+next-ship-date                 (cancellation page)
+payment-options-link
+payment-select
+reason-toggle                  (cancellation page — one per reason)
+ship-cancel-btn
+ship-confirm-btn
+ship-next-order-now-btn
+ship-order-now-modal
+ship-to-address
+ship-to-name
+ship-to-zipcode
+skip-cancel-btn
+skip-confirm-btn
+skip-date                      (skip modal: current scheduled date)
+skip-next-order-btn
+skip-next-order-modal
+subscription-edit-close-btn
+subscription-id                (cancellation page)
+subscription-image
+subscription-name
+subscription-price
+subscription-savings
+subscription-select
+subtotal-new
+subtotal-original
+update-btn
+```
+
