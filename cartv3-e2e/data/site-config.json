@@ -112,7 +112,7 @@
       "primaryDomain": "badlandsranch.com",
       "urls": {
         "uat": {
-          "base": "https://uat-int.badlandsranch.com",
+          "base": "https://uat.badlandsranch.com",
           "login": "/login",
           "account": "/my-account",
           "register": "/signup",
@@ -132,6 +132,7 @@
           "terms": "/terms",
           "privacy": "/privacy",
           "privacyChoices": "/your-privacy-choices",
+          "paymentDetails": "/payment-details",
           "orderConfirmation": "/order-confirmation"
         },
         "prod": {
@@ -169,13 +170,27 @@
         "manageAccountHeading": "Manage Account",
         "cartEmptyText": "Your cart is empty!",
         "cartHeaderText": "Cart",
-        "validCoupon": "TODO_CONFIRM_BADLANDS_VALID_COUPON",
-        "csPhone": "TODO_CONFIRM_BADLANDS_CS_PHONE",
+        "validCoupon": "AUTOTEST1",
+        "csPhone": "888-872-4522",
         "csHours": {
-          "weekday": "TODO_CONFIRM_BADLANDS_WEEKDAY_HOURS",
-          "weekend": "TODO_CONFIRM_BADLANDS_WEEKEND_HOURS"
+          "weekday": "Mon.*Fri.*6am.*5pm.*PT",
+          "weekend": "Sat.*Sun.*6am.*4pm.*PT"
         },
-        "freeShippingText": "FREE!"
+        "freeShippingText": "FREE!",
+        "cancelReason": "another reason"
+      },
+      "testAddress": {
+        "firstName": "Golden",
+        "lastName": "Pet",
+        "email": "tester@goldenhippo.com",
+        "address1": "23251 Mulholland Drive",
+        "city": "Woodland Hills",
+        "state": "California",
+        "zip": "91364",
+        "phone": "5555555555"
+      },
+      "testAccountIds": {
+        "uat": "0010m00000kgYHjAAM"
       }
     }
   }
