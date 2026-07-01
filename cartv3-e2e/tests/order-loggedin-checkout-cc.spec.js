@@ -30,6 +30,16 @@ test.describe('Order - Logged-In Checkout with Saved Credit Card', () => {
     'logged-in order: submit from /checkout with saved CC and validate confirmation',
     { tag: '@real-order' },
     async ({ page, brand }) => {
+      // PROD ONLY skip: submitting an order via /checkout renders the payment-details
+      // page, which is gated by a Cloudflare Turnstile (human-verification) widget in
+      // the app (hippo-builder-cart). Automation can't produce a valid Turnstile token,
+      // so the submit is rejected ("Too many requests"). DevOps confirmed 2026-07-01
+      // this is Turnstile in app code — NOT bypassable from Cloudflare — and prod uses
+      // live keys. This flow works on UAT (test keys), so it stays fully covered there;
+      // prod order-placement is covered by order-loggedin-cart-cc (submits from /cart,
+      // which doesn't render the Turnstile page). See CLAUDE.md Backlog (Turnstile note).
+      test.skip(brand.env === 'prod', 'PROD: /checkout submit blocked by Cloudflare Turnstile (app-side, no bypass) — covered on UAT; prod orders covered by order-loggedin-cart-cc');
+
       const loginPage        = new LoginPage(page, brand);
       const cartPage         = new CartPage(page, brand);
       const checkoutPage     = new CheckoutPage(page, brand);
