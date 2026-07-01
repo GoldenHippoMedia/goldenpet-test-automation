@@ -9,6 +9,12 @@ const { CartPage } = require('../pages/cart.page');
 
 test.describe('Auth - Login/Logout Header States', () => {
   test('header reflects logged-out state, login via header link, logout restores logged-out state', async ({ page, brand }) => {
+    // Depends on the header account dropdown for logout() (`.header__account__dropdown`),
+    // which is DMP's coded Angular header. Badlands' header is Builder-authored with no
+    // equivalent stable markup — DMP-only until the team adds header data-qa. See the
+    // Badlands onboarding notes in CLAUDE.md (same disposition as header.spec).
+    test.skip(brand.name === 'badlands', 'Badlands header is Builder-authored (no account-dropdown markup) — DMP-only until header data-qa is added (see CLAUDE.md).');
+
     const loginPage = new LoginPage(page, brand);
     const headerPage = new HeaderPage(page, brand);
     const cartPage = new CartPage(page, brand);

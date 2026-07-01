@@ -7,6 +7,15 @@ test.describe(`Header Navigation - ${process.env.BRAND || 'drmarty'}`, () => {
   test.slow();
 
   test('all header and account dropdown links navigate correctly', async ({ page, brand }) => {
+    // Badlands' header is authored in Builder.io, not the coded Angular header DMP uses:
+    // the nav items (Shop/Subscribe/Reviews/Contact/Store Locator) have NO href and NO
+    // data-qa, only volatile `builder-<hash>` classes (regenerated on every Builder
+    // publish), and "Shop" is a dropdown rather than a direct /products link. There is no
+    // stable selector to port this spec onto. DMP-only until the team adds data-qa to the
+    // Builder header nav — see the Badlands onboarding notes in CLAUDE.md. (Decision: skip
+    // for Badlands, revisit post-launch.)
+    test.skip(brand.name === 'badlands', 'Badlands header is Builder-authored with no stable nav selectors — DMP-only until data-qa is added (see CLAUDE.md).');
+
     const loginPage = new LoginPage(page, brand);
     const headerPage = new HeaderPage(page, brand);
 

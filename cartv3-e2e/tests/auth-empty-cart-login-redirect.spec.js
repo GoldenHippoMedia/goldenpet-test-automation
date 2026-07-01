@@ -21,6 +21,13 @@ test.describe('Auth - Empty Cart Login Redirect', () => {
     await headerPage.loginLink.click();
     await expect(page).toHaveURL(/login/);
 
+    // Arriving via the SPA header link, the Angular login form can still be hydrating/
+    // re-mounting when we start typing (which wipes the entered values → submit stays
+    // disabled). loginPage.goto() avoids this by stabilizing first; here we replicate that
+    // by settling the page (dismiss any popup + wait for network idle) before filling.
+    await headerPage.dismissPopupIfPresent();
+    await page.waitForLoadState('networkidle').catch(() => {});
+
     // Submit credentials and wait for any redirect away from /login
     await loginPage.loginAndWait(null, null, url => !url.toString().includes('/login'));
 

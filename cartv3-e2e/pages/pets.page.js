@@ -213,9 +213,12 @@ class PetsPage extends BasePage {
   /**
    * The "Contact Us" button in the remove dialog. Navigates same-tab to /contact.
    * Button text is " Contact Us " (whitespace-padded) → substring match, not anchored.
+   * SCOPED to the dialog ([role="dialog"]) — some brands (e.g. Badlands' Builder
+   * footer) also render a "Contact Us" button on the page, which would otherwise
+   * trip a strict-mode violation. Material dialogs expose role="dialog".
    */
   get contactUsBtn() {
-    return this.page.locator('button', { hasText: 'Contact Us' });
+    return this.page.locator('[role="dialog"]').locator('button', { hasText: 'Contact Us' });
   }
 
   /**

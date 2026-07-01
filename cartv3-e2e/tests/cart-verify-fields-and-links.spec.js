@@ -26,9 +26,12 @@ test.describe('Cart - Verify Fields and Links (Logged In)', () => {
     // Add a product to the cart
     await cartPage.addProductByKey('loggedin_std_2');
 
-    // Verify shipping address on cart matches the saved address
+    // Verify shipping address on cart matches the saved address. Compare on street
+    // LINE 1 only — some brands' cart summary (e.g. Badlands) render line 1 without the
+    // line-2 / suite portion, while getStreetAddress() returns the full street string.
     if (savedStreetAddress) {
-      await expect(cartPage.shippingStreet).toContainText(savedStreetAddress);
+      const streetLine1 = savedStreetAddress.split(',')[0].trim();
+      await expect(cartPage.shippingStreet).toContainText(streetLine1);
     }
 
     // Verify payment method select [data-qa="saved-card"] is populated

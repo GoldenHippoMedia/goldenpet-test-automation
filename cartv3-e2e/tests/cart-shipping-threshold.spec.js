@@ -4,9 +4,11 @@ const { parseMoney } = require('../helpers/parse-money');
 
 // GI: "Cart - (Shipping Threshold) Add Products with Added Shipping and
 //      Free Shipping (Mike)"
-// Adds product under $50 (should have shipping fee on checkout),
-// then product over $50 (should have free shipping on checkout).
-// Both tests run logged out and use Checkout As Guest.
+// Adds a product under the free-shipping threshold (should have a shipping fee at
+// checkout), then a product that pushes the cart OVER the threshold (should get free
+// shipping). Runs logged OUT and uses Checkout As Guest — the free-shipping THRESHOLD
+// is a guest/logged-out rule. Logged-in accounts always get free shipping (membership
+// benefit), so this is intentionally a guest-path test. Threshold: DMP $50+, Badlands $49+.
 
 test.describe('Cart - Shipping Threshold', () => {
   test('products under threshold have shipping fee, over threshold get free shipping', async ({ page, brand }) => {
@@ -37,8 +39,12 @@ test.describe('Cart - Shipping Threshold', () => {
     await expect(shippingValue).not.toContainText(freeShippingText);
     await expect(shippingValue).not.toContainText('FREE');
 
-    // --- Product OVER $50 (should have free shipping) ---
-    await cartPage.addProductByKey('loggedin_std_3');
+    // --- Product that pushes the cart OVER the free-shipping threshold (→ free) ---
+    // Use the flagship standard product (loggedin_std_1), priced above every brand's
+    // free-shipping threshold on its own (DMP $50+, Badlands $49+). loggedin_std_3 is a
+    // low-priced treat SKU on some brands (Badlands: $19.99), so it can't be relied on
+    // to clear the threshold. (Re-verify DMP after this change — should still pass.)
+    await cartPage.addProductByKey('loggedin_std_1');
 
     // Verify shipping says "Calculated on Next Page" on the cart
     await expect(cartPage.shippingText).toContainText('Calculated on Next Page');

@@ -20,7 +20,9 @@ class HeaderPage extends BasePage {
     this.storeLocatorLink  = page.locator(`a.header__nav__link[href="${brand.storeLocatorUrl}"]:visible`);
 
     // --- Logged-out / Logged-in state indicators ---
-    this.loginLink  = page.locator('a[href="/login"]:visible').first();
+    // Some brands' header link uses a trailing slash (Badlands: /login/), others don't
+    // (DMP: /login) — match both so the login-entry specs are brand-portable.
+    this.loginLink  = page.locator('a[href="/login"]:visible, a[href="/login/"]:visible').first();
     this.hiGreeting = page.locator('p:has-text("Hi,"):visible').first();
 
     // --- Account Dropdown Trigger ---

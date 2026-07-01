@@ -40,10 +40,12 @@ async function verifyOpensInNewTab(page, link, urlRx, label) {
 
 // Assert every disclosure link on the CURRENT page opens its correct destination.
 // URL patterns are PATH-based (brand-agnostic — not tied to drmartypets.com).
-async function verifyDisclosureLinks(page) {
+async function verifyDisclosureLinks(page, subTermsRx) {
   const sub = page.locator('[data-qa="subscription-terms-text"]');
-  // subscription-block links
-  await verifyOpensInNewTab(page, sub.getByRole('link', { name: /^Subscription Terms$/ }), /subscription_terms/i, 'Subscription Terms');
+  // subscription-block links. The Subscription Terms destination is brand-specific
+  // (DMP: a /subscription_terms path; Badlands: a terms doc on its CDN), so the expected
+  // pattern is passed in from brand.content.subscriptionTermsUrl.
+  await verifyOpensInNewTab(page, sub.getByRole('link', { name: /^Subscription Terms$/ }), subTermsRx, 'Subscription Terms');
   await verifyOpensInNewTab(page, sub.getByRole('link', { name: /^Account$/ }), /\/my-account/, 'Account');
   // support email — mailto, so assert the href (don't click — it would open a mail client)
   await expect(sub.getByRole('link', { name: /support@/i }), 'support email is a mailto link')
@@ -60,6 +62,8 @@ test.describe('Cart/Checkout - Verify Subscription Terms', () => {
     const loginPage = new LoginPage(page, brand);
     const cartPage = new CartPage(page, brand);
     const checkoutPage = new CheckoutPage(page, brand);
+    // Subscription Terms link destination is brand-specific (see brand.content).
+    const subTermsRx = new RegExp(brand.content.subscriptionTermsUrl || 'subscription_terms', 'i');
 
     await loginPage.goto();
     await loginPage.login();
@@ -76,7 +80,7 @@ test.describe('Cart/Checkout - Verify Subscription Terms', () => {
     });
 
     await test.step('all disclosure links open correct destinations on /cart', async () => {
-      await verifyDisclosureLinks(page);
+      await verifyDisclosureLinks(page, subTermsRx);
     });
 
     // --- /checkout (reached via the cart's shipping "change" link, as other specs do) ---
@@ -90,7 +94,7 @@ test.describe('Cart/Checkout - Verify Subscription Terms', () => {
     });
 
     await test.step('all disclosure links open correct destinations on /checkout', async () => {
-      await verifyDisclosureLinks(page);
+      await verifyDisclosureLinks(page, subTermsRx);
     });
   });
 

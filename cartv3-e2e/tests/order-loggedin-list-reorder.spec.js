@@ -108,9 +108,12 @@ test.describe('Account - Order History list + Buy It Again + Re-Order All', () =
     // FIRST product row (the order header has no Buy It Again button), so this is
     // implicitly row-scoped without needing a brittle row-DOM selector.
     await firstCard.locator('button').filter({ hasText: /buy it again/i }).first().click();
-    await page.waitForURL(/\/product\//, { timeout: 15000 });
+    // PDP path is brand-specific: DMP uses /product/<slug>, Badlands uses /p/<slug>.
+    await page.waitForURL(/\/(product|p)\//, { timeout: 15000 });
 
-    const pdpTitle = page.locator('h1.product-name');
+    // PDP title is brand-specific: DMP renders h1.product-name; Badlands' PDP uses
+    // the os-* product widget with a data-qa (a <p data-qa="os-product-name">).
+    const pdpTitle = page.locator('h1.product-name, [data-qa="os-product-name"]').first();
     await expect(pdpTitle).toBeVisible();
     const pdpName = (await pdpTitle.textContent()).trim();
     expect(

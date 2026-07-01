@@ -88,7 +88,8 @@
           "weekday": "Mon-?Fri.*PST",
           "weekend": "Sat-?Sun.*PST"
         },
-        "freeShippingText": "FREE!"
+        "freeShippingText": "FREE!",
+        "subscriptionTermsUrl": "subscription_terms"
       },
       "testAddress": {
         "firstName": "Golden",
@@ -171,13 +172,14 @@
         "cartEmptyText": "Your cart is empty!",
         "cartHeaderText": "Cart",
         "validCoupon": "AUTOTEST1",
-        "csPhone": "888-872-4522",
+        "csPhone": "(888) 872-4522",
         "csHours": {
-          "weekday": "Mon.*Fri.*6am.*5pm.*PT",
-          "weekend": "Sat.*Sun.*6am.*4pm.*PT"
+          "weekday": "Mon-?Fri.*6am.*5pm.*PST",
+          "weekend": "Sat-?Sun.*6am.*4pm.*PST"
         },
         "freeShippingText": "FREE!",
-        "cancelReason": "another reason"
+        "cancelReason": "another reason",
+        "subscriptionTermsUrl": "badlandsranch-terms"
       },
       "testAddress": {
         "firstName": "Golden",
@@ -190,7 +192,8 @@
         "phone": "5555555555"
       },
       "testAccountIds": {
-        "uat": "0010m00000kgYHjAAM"
+        "uat": "0010m00000kgYHjAAM",
+        "prod": "0013w00002cqXttAAE"
       }
     }
   }
