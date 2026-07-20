@@ -13,7 +13,7 @@ const { CheckoutPage } = require('../pages/checkout.page');
 test.describe('Cart - Submit Standard Order', () => {
   test.slow();
 
-  test('submit order with default credit card and verify confirmation', { tag: '@real-order' }, async ({ page, brand }) => {
+  test('submit order with default credit card and verify confirmation', { tag: ['@real-order', '@prod-order'] }, async ({ page, brand }) => {
     const loginPage = new LoginPage(page, brand);
     const cartPage = new CartPage(page, brand);
     const checkoutPage = new CheckoutPage(page, brand);

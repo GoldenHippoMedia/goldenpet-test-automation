@@ -28,7 +28,7 @@ test.describe('Order - Logged-In Checkout with Saved Credit Card', () => {
 
   test(
     'logged-in order: submit from /checkout with saved CC and validate confirmation',
-    { tag: '@real-order' },
+    { tag: ['@real-order', '@prod-order'] },
     async ({ page, brand }) => {
       // PROD ONLY skip: submitting an order via /checkout renders the payment-details
       // page, which is gated by a Cloudflare Turnstile (human-verification) widget in

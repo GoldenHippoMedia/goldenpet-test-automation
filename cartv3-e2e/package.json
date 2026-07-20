@@ -15,6 +15,8 @@
     "cartv3:prod:headed": "BRAND=drmarty ENVIRONMENT=prod npx playwright test tests --headed --grep-invert @real-order",
     "cartv3:real-orders:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests --grep @real-order",
     "cartv3:real-orders:prod": "BRAND=drmarty ENVIRONMENT=prod npx playwright test tests --grep @real-order",
+    "_comment_release_prod": "Prod release regression: full non-real-order suite PLUS exactly the 2 @prod-order specs (order-loggedin-cart-cc + order-loggedin-checkout-cc), skips every other @real-order test. One command for release day, no separate real-order run needed. NOTE: order-loggedin-checkout-cc is EXPECTED RED on prod (Cloudflare Turnstile blocks automated /checkout submit there, confirmed 2026-07-01 — not a bug, not flaky); order-loggedin-cart-cc is the real prod order-coverage path and should pass. BRAND defaults to drmarty; override with BRAND=badlands.",
+    "cartv3:release:prod": "BRAND=${BRAND:-drmarty} ENVIRONMENT=prod npx playwright test tests --grep-invert \"@real-order\" && BRAND=${BRAND:-drmarty} ENVIRONMENT=prod npx playwright test tests --grep \"@prod-order\"",
     "cartv3:debug": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests --debug",
 
     "cartv3:login:uat": "BRAND=drmarty ENVIRONMENT=uat npx playwright test tests/login.spec.js",
