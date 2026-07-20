@@ -160,6 +160,27 @@ the row here. (The team keeps adding `data-qa` — re-audit a page before trusti
   `*/payment-service/proxy/*`, and the order-submit endpoint. Full diagnosis in the **Known
   Issues** note near the end of this file. Workaround today: space `@real-order` runs; submit
   from `/cart` (sidesteps the `/checkout` challenge).
+- **[TODO / on hold — DECIDED NOT TO PURSUE, revisit only if needed] Turnstile + rate-limit on
+  prod order/payment SUBMIT endpoints.** On **prod specifically**, the app-side Cloudflare
+  **Turnstile** challenge (`challenges.cloudflare.com/cdn-cgi/challenge-platform`, seen as `401`
+  + a "Too many requests" toast; also `419` on `*/proxy/funnel/stats/save/`) blocks automated
+  SUBMIT on the `/checkout` order path and would similarly gate `/payment-details` card actions.
+  The `QA_UA_TOKEN` UA skips edge **bot management** only — it does NOT clear Turnstile or the
+  rate-limit rule. Turnstile itself is confirmed present+working on DMP prod `/checkout` +
+  `/payment-details` (real `1.` tokens); BLR returned the Cloudflare **test dummy token**
+  (`XXXX.DUMMY.TOKEN.XXXX`) → BLR is on a *testing* sitekey, not a live one (separate dev/CMS
+  fix, not DevOps infra). **SDET decision (do NOT file the allow-list ask):** we deliberately do
+  NOT automate the prod `/checkout` CC submit — `order-loggedin-checkout-cc` stays `test.skip`
+  on prod, covered on UAT; prod order placement is covered by `order-loggedin-cart-cc`
+  (`@prod-order`, submits from `/cart`, no Turnstile). Rationale: the only prod-unique element is
+  Turnstile, which we'd be *bypassing* (so the automated test wouldn't reflect the real user
+  path), it doubles real-order load for thin incremental coverage, and it needs a standing
+  security carve-out on the payment-submit path. The prod `/checkout` CC path is covered by a
+  **manual release smoke** instead. **Revisit ONLY if** we ever need automated prod `/checkout`
+  or `/payment-details` submit coverage — then the ask is: allow-list the QA UA (or a secret
+  header) on the **Turnstile/managed-challenge + rate-limit rules** for the checkout & order
+  `*/proxy/*` submit endpoints, both prod zones. Evidence already captured (DMP prod):
+  `cf-ray=a1b429dfaf63f79d-LAX` / `a1b42a5debff55c7-LAX`.
 - **`QA_UA_TOKEN` allow-list on each NEW brand's UAT Cloudflare zone** before running the suite
   there (else logged-in navs hit the bot wall). See Backlog "Brand-portability".
 
