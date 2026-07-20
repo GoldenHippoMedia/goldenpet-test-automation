@@ -24,7 +24,7 @@
       "primaryDomain": "drmartypets.com",
       "urls": {
         "uat": {
-          "base": "https://uat-int.drmartypets.com",
+          "base": "https://uat.drmartypets.com",
           "login": "/login",
           "account": "/my-account",
           "register": "/signup",

@@ -1,0 +1,27 @@
+{
+  "_comment": "Data-driven cases for tests/subscription-update-shipping-address.spec.js. Each key (except _comment) becomes its own Playwright test() — run one with -g \"<Country>\". Parallels data/shipping-address-cases.json (the /account-details shipping form uses the SAME <address-form> component) but adds firstName/lastName (the subscription Recipient Info modal exposes them) and uses UNIQUE tokens per field so the backend shippingAddress round-trip can assert each value via a substring match without false positives. Select values are \"<code>|<name>\" exactly as the live <select> exposes them. expectOptionPresent/expectOptionAbsent assert the Country->State/Province dropdown swap. zip uses that country's postal format. Restore is automatic (the test snapshots the sub's real recipient first, then writes it back — country flipped back to US last).",
+  "United States": {
+    "country": "US|United States",
+    "firstName": "QaAutoFirstUs",
+    "lastName": "QaAutoLastUs",
+    "street": "1 QA Automation Way",
+    "additional": "Suite QA-100",
+    "city": "Beverly Hills",
+    "state": "CA|California",
+    "zip": "90210",
+    "expectOptionPresent": "California",
+    "expectOptionAbsent": "British Columbia"
+  },
+  "Canada": {
+    "country": "CA|Canada",
+    "firstName": "QaAutoFirstCa",
+    "lastName": "QaAutoLastCa",
+    "street": "2 QA Automation Blvd",
+    "additional": "Unit QA-200",
+    "city": "Vancouver",
+    "state": "BC|British Columbia",
+    "zip": "V6V 2J3",
+    "expectOptionPresent": "British Columbia",
+    "expectOptionAbsent": "California"
+  }
+}

@@ -179,6 +179,9 @@ subscription-savings
 subscription-select
 subtotal-new
 subtotal-original
+terms-checkbox                 (custom <checkbox> "Yes, I want to update my subscription!" — GATES update-btn)
+terms-toggle                   (expands the Terms & Conditions text)
+paypal-method-display          (PayPal/funnel subs — shown instead of payment-select; no quantity control)
 update-btn
 ```
 

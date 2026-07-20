@@ -31,4 +31,21 @@ function sameDisplayDate(a, b) {
   return normalizeDateText(a) === normalizeDateText(b);
 }
 
-module.exports = { addDaysIso, normalizeDateText, sameDisplayDate };
+const MONTHS = {
+  JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06',
+  JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12',
+};
+
+/**
+ * Parse a "DD Mon YYYY" display date (e.g. "5 Oct 2026") to ISO "YYYY-MM-DD", or null if
+ * it doesn't match. ISO strings sort chronologically, so callers can compare dates with
+ * plain `<`/`>` and match against the backend's `nextOrderDatePart`.
+ */
+function displayDateToIso(s) {
+  const m = normalizeDateText(s).match(/(\d{1,2})\s+([A-Z]{3})[A-Z]*\s+(\d{4})/);
+  if (!m) return null;
+  const mm = MONTHS[m[2]];
+  return mm ? `${m[3]}-${mm}-${m[1].padStart(2, '0')}` : null;
+}
+
+module.exports = { addDaysIso, normalizeDateText, sameDisplayDate, displayDateToIso };

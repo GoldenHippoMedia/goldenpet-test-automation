@@ -73,7 +73,37 @@ class SubscriptionEditPage extends BasePage {
     this.shipToName    = page.locator('[data-qa="ship-to-name"]');
     this.shipToAddress = page.locator('[data-qa="ship-to-address"]');
     this.shipToZip     = page.locator('[data-qa="ship-to-zipcode"]');
+    // Editable delivery-address fields. The changeShippingLink opens a SEPARATE
+    // "Recipient Info" MODAL (not an inline panel section) holding the reused
+    // <address-form> component with a SINGLE trailing-dash suffix — use EXACT data-qa,
+    // never a `^=` prefix (that would also match checkout's billing fields elsewhere).
+    this.shipCountry    = page.locator('[data-qa="ship-country-"]');       // <select> "US|United States"
+    this.shipFirstName  = page.locator('[data-qa="first-name-"]');
+    this.shipLastName   = page.locator('[data-qa="last-name-"]');
+    this.shipStreet     = page.locator('[data-qa="ship-street-address-"]');
+    this.shipAdditional = page.locator('[data-qa="ship-additional-address-line-"]');
+    this.shipCity       = page.locator('[data-qa="ship-city-"]');
+    this.shipState      = page.locator('[data-qa="ship-state-"]');         // <select> "CA|California"
+    this.shipPostal     = page.locator('[data-qa="ship-postal-code-"]');
+    // The Recipient Info modal's OWN "Update" button (NO data-qa). Clicking it COMMITS
+    // the edited address into the panel's Shipping To display and closes the modal —
+    // it does NOT persist; the sub is written only by the panel's update-btn afterward.
+    // Distinguished from update-btn by its exact accessible name ("Update" vs the panel's
+    // "Update Subscription Box"). Audited live 2026-07-08.
+    // TODO: ask team to add data-qa to the Recipient Info modal's Update/Close buttons.
+    this.shipModalUpdateBtn = page.getByRole('button', { name: 'Update', exact: true });
     this.updateBtn = page.locator('[data-qa="update-btn"]');
+    // "Yes, I want to update my subscription!" agreement box. The panel's update-btn
+    // ("Update Subscription Box") stays DISABLED until this is ticked, even after a valid
+    // change. It's a CUSTOM control with NO data-qa: the OUTER element is itself a
+    // <div role="button" class="checkbox"> wrapping a <mat-icon> that toggles
+    // check_box_outline_blank ↔ check_box. Audited live 2026-07-08 — the earlier
+    // `[data-qa="terms-checkbox"]` guess never existed in the DOM, so the old tick
+    // silently no-op'd and update-btn never enabled.
+    // TODO: ask team to add a data-qa to this agreement checkbox.
+    this.agreeCheckbox = page.locator('div.checkbox[role="button"]', {
+      hasText: /want to update my subscription/i,
+    });
     // "Cancel Subscription Box" trigger lives in the edit panel; data-qa="cancel-btn"
     // is REUSED for the final confirm on the /subscription-cancellation page.
     this.cancelBoxBtn = page.locator('[data-qa="cancel-btn"]');
@@ -97,8 +127,11 @@ class SubscriptionEditPage extends BasePage {
     this.shipConfirmBtn = page.locator('[data-qa="ship-confirm-btn"]');
     this.shipCancelBtn  = page.locator('[data-qa="ship-cancel-btn"]').first();
     // Post-confirm success popup ("You're all set!" / "Order Confirmed") — no stable
-    // data-qa, so match by copy + close via the mat-icon close button.
-    this.shipSuccessText = page.getByText(/you'?re all set|order confirmed/i).first();
+    // data-qa, so match by copy + close via the mat-icon close button. NOTE: the app copy
+    // uses a TYPOGRAPHIC apostrophe (U+2019), not ASCII "'" — verified live 2026-07-14
+    // (char code 8217). The class `[’']?` matches curly, straight, or none, so the
+    // matcher survives either style (the old `'?` matched only ASCII and missed the popup).
+    this.shipSuccessText = page.getByText(/you[’']?re all set|order confirmed/i).first();
     this.shipSuccessClose = page.locator('mat-icon:has-text("close")').first();
 
     // --- Cancellation page (/subscription-cancellation/{sfId}) ---
@@ -148,6 +181,68 @@ class SubscriptionEditPage extends BasePage {
   async getSelectedSsc() {
     const label = await this.subscriptionSelect.evaluate((s) => s.selectedOptions[0]?.text || '');
     return (label.match(/SSC-\d+/) || [null])[0];
+  }
+
+  /** Try to open the edit panel for the current sub; non-throwing, returns true if it opened. */
+  async tryOpenDeliveryPayment(timeout = 6000) {
+    try {
+      await this.deliveryPaymentBtn.click({ timeout: 5000 });
+      await this.updateBtn.waitFor({ state: 'visible', timeout });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Try to expand the frequency section and reveal the editable date input; non-throwing. */
+  async tryOpenFrequencyDateInput(timeout = 6000) {
+    try {
+      await this.frequencyToggle.click({ timeout: 5000 });
+      await this.nextOrderDateInput.waitFor({ state: 'visible', timeout });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Close the edit panel (best-effort). */
+  async closeEdit() {
+    await this.editCloseBtn.click({ timeout: 3000 }).catch(() => {});
+    await this.page.waitForTimeout(400);
+  }
+
+  /**
+   * Walk the subscription dropdown and return the first sub that is actually EDITABLE for
+   * the requested operation. Some subs (e.g. PayPal-funnel S&S) intentionally render
+   * without full edit controls, so index 0 isn't safe to assume. On a match this leaves
+   * that sub SELECTED with the edit panel OPEN (and, when needDateInput, the frequency
+   * section expanded). Returns the sub descriptor {label, value, ssc} or null if none.
+   *
+   * @param {{needQuantityOptions?: boolean, needDateInput?: boolean, needShipNow?: boolean}} opts
+   */
+  async pickEditableSubscription({ needQuantityOptions = false, needDateInput = false, needShipNow = false, needPaymentSelect = false } = {}) {
+    const subs = await this.listSubscriptions();
+    for (let i = 0; i < subs.length; i++) {
+      await this.selectSubscription({ index: i });
+
+      // Ship Now availability is judged from the summary, before opening the panel.
+      if (needShipNow && !(await this.isShipNowAvailable())) continue;
+
+      if (!(await this.tryOpenDeliveryPayment())) continue;
+
+      if (needQuantityOptions) {
+        const qtys = await this.listQuantities().catch(() => []);
+        if (qtys.length < 2) { await this.closeEdit(); continue; }
+      }
+      // Card subs expose payment-select; PayPal-funnel subs show paypal-method-display instead.
+      if (needPaymentSelect && (await this.paymentSelect.count()) === 0) { await this.closeEdit(); continue; }
+      if (needDateInput) {
+        if (!(await this.tryOpenFrequencyDateInput())) { await this.closeEdit(); continue; }
+      }
+      console.log(`[subscription] picked editable sub ${subs[i].ssc} (index ${i}) for editing`);
+      return subs[i];
+    }
+    return null;
   }
 
   // ----------------------------------------------------------------------------
@@ -242,15 +337,34 @@ class SubscriptionEditPage extends BasePage {
     await this.nextOrderDateInput.waitFor({ state: 'visible', timeout: 15000 });
   }
 
-  /** Currently selected quantity as an integer (parsed from "N - $X.XX / unit"). */
+  /**
+   * Currently selected quantity as an integer (parsed from "N - $X.XX / unit").
+   * Returns NaN when this sub has no quantity control (e.g. PayPal-funnel S&S). The
+   * `count()` guard is instant — WITHOUT it, `.evaluate()` on the absent `#quantityId`
+   * waits until the test timeout and Playwright tears the page down.
+   */
   async getQuantity() {
+    if ((await this.quantitySelect.count()) === 0) return NaN;
     const text = await this.quantitySelect.evaluate((s) => s.selectedOptions[0]?.text || '');
     const m = text.match(/^\s*(\d+)/);
     return m ? parseInt(m[1], 10) : NaN;
   }
 
-  /** All selectable quantities as integers (skips the blank first option). */
+  /**
+   * Per-unit price of the currently selected quantity option, parsed from its
+   * "N - $X.XX / unit" label (e.g. "3 - $27.21 / unit" → 27.21). Each option carries its
+   * own per-unit price, so this correctly reflects bulk pricing. Returns NaN if absent.
+   */
+  async getSelectedQuantityUnitPrice() {
+    if ((await this.quantitySelect.count()) === 0) return NaN;
+    const text = await this.quantitySelect.evaluate((s) => s.selectedOptions[0]?.text || '');
+    const m = text.match(/\$\s*([\d,]+(?:\.\d+)?)\s*\/\s*unit/i);
+    return m ? parseFloat(m[1].replace(/,/g, '')) : NaN;
+  }
+
+  /** All selectable quantities as integers. Returns [] when there's no quantity control. */
   async listQuantities() {
+    if ((await this.quantitySelect.count()) === 0) return [];
     return this.quantitySelect.evaluate((s) =>
       [...s.options].map((o) => (o.text.match(/^\s*(\d+)/) || [null, null])[1]).filter(Boolean).map(Number),
     );
@@ -276,6 +390,14 @@ class SubscriptionEditPage extends BasePage {
     return (await this.frequencySelect.evaluate((s) => s.selectedOptions[0]?.text || '')).trim();
   }
 
+  /** Selectable frequency labels (e.g. ["Every week", "Every month", …]); drops the placeholder. */
+  async listFrequencies() {
+    if ((await this.frequencySelect.count()) === 0) return [];
+    return this.frequencySelect.evaluate((s) =>
+      [...s.options].map((o) => o.text.trim()).filter((t) => t && !/select frequency/i.test(t)),
+    );
+  }
+
   /** Set frequency by visible label, e.g. "Every 2 months". */
   async setFrequency(label) {
     await this.frequencySelect.selectOption({ label });
@@ -292,17 +414,47 @@ class SubscriptionEditPage extends BasePage {
     return this.nextOrderDateInput.inputValue();
   }
 
-  /** Wait for update-btn to enable, click it, and return the subscription-write response. */
+  /** The date input's declared bounds: { min, max } (ISO "YYYY-MM-DD" strings, or null). */
+  async getNextOrderDateBounds() {
+    return this.nextOrderDateInput.evaluate((el) => ({ min: el.min || null, max: el.max || null }));
+  }
+
+  /** HTML5 validity of the date input for its current value (out-of-range detection). */
+  async getNextOrderDateValidity() {
+    return this.nextOrderDateInput.evaluate((el) => ({
+      valid: el.validity.valid,
+      rangeUnderflow: el.validity.rangeUnderflow, // value < min (past)
+      rangeOverflow: el.validity.rangeOverflow,   // value > max (too far out)
+    }));
+  }
+
+  /**
+   * Acknowledge the agreement + click Update, returning the subscription-write response.
+   * update-btn is gated by the "Yes, I want to update my subscription!" agreement box
+   * (a valid change alone does NOT enable it), so tick that first, then click. The
+   * checkbox scrolls into view at the bottom of the edit panel, below the Payment
+   * section — click() auto-scrolls to it.
+   */
   async clickUpdate() {
     await this.updateBtn.waitFor({ state: 'visible' });
-    // The button enables once a valid change dirties the form.
-    await this.page.waitForFunction(
-      (el) => el && !el.disabled,
-      await this.updateBtn.elementHandle(),
-      { timeout: 15000 },
-    ).catch(() => {});
+    // Tick the agreement checkbox if the button is still disabled (idempotent — skip if a
+    // prior step already ticked it). A real click on the custom div[role=button].checkbox
+    // flips the mat-icon and enables update-btn.
+    if (await this.updateBtn.isDisabled().catch(() => true)) {
+      await this.agreeCheckbox.click({ timeout: 5000 }).catch(() => {});
+      // Wait for the tick to enable the button (Angular re-renders on the toggle).
+      await this.page
+        .waitForFunction(
+          () => {
+            const b = document.querySelector('[data-qa="update-btn"]');
+            return b && !b.disabled;
+          },
+          { timeout: 5000 },
+        )
+        .catch(() => {});
+    }
     const respP = this.waitForSubscriptionWrite();
-    await this.updateBtn.click();
+    await this.updateBtn.click(); // auto-waits for the button to be enabled
     const response = await respP;
     return response;
   }
@@ -317,6 +469,148 @@ class SubscriptionEditPage extends BasePage {
       shipping: await t(this.summaryShipping),
       grandTotal: await t(this.grandTotal),
     };
+  }
+
+  /**
+   * Assert the edit-panel money math: grand total ≈ new subtotal + tax + shipping (±$0.01).
+   * "Free"/blank shipping parses to 0. Returns the parsed summary for further assertions.
+   * NOTE: assumes no discount line (test subs carry no coupon); if a coupon is ever added
+   * to a test sub this will surface it (grand total would be lower) — that's intended.
+   */
+  async assertSummaryMath(expect) {
+    const s = await this.getSummary();
+    const n = (v) => {
+      if (v == null || v === '') return 0;
+      if (/free/i.test(v)) return 0;
+      const m = String(v).match(/-?\$?\s*([\d,]+(?:\.\d+)?)/);
+      return m ? parseFloat(m[1].replace(/,/g, '')) : 0;
+    };
+    const sub = n(s.subtotalNew || s.subtotalOriginal);
+    const tax = n(s.tax);
+    const ship = n(s.shipping);
+    const grand = n(s.grandTotal);
+    expect(
+      Math.abs(grand - (sub + tax + ship)),
+      `grand total ${s.grandTotal} should equal subtotal ${s.subtotalNew} + tax ${s.tax} + shipping ${s.shipping}`,
+    ).toBeLessThan(0.01);
+    return { sub, tax, ship, grand };
+  }
+
+  // ----------------------------------------------------------------------------
+  // Payment method
+  // ----------------------------------------------------------------------------
+
+  /** The currently selected payment method's option value (a unique token, even when labels dup). */
+  async getPaymentValue() {
+    return this.paymentSelect.inputValue();
+  }
+
+  /** Selectable payment option VALUES (unique tokens), excluding the "Payment Details" placeholder. */
+  async listPaymentValues() {
+    if ((await this.paymentSelect.count()) === 0) return [];
+    return this.paymentSelect.evaluate((s) =>
+      [...s.options].filter((o) => o.value && !/payment details/i.test(o.text)).map((o) => o.value),
+    );
+  }
+
+  async setPaymentByValue(value) {
+    await this.paymentSelect.selectOption(value);
+    await this.page.waitForTimeout(600);
+  }
+
+  // ----------------------------------------------------------------------------
+  // Delivery address (edit)
+  // ----------------------------------------------------------------------------
+
+  /** True if the current sub exposes the "Change" delivery-address link (frequency section must be open). */
+  async hasShippingAddressForm() {
+    return (await this.changeShippingLink.count()) > 0;
+  }
+
+  /** Open the "Recipient Info" delivery-address MODAL via the "Change" link. */
+  async openShippingAddressForm() {
+    await this.changeShippingLink.click();
+    await this.shipStreet.waitFor({ state: 'visible', timeout: 15000 });
+  }
+
+  /**
+   * All values in the open Recipient Info modal (call while the modal is open). Select
+   * fields (country/state) return their option VALUE, e.g. "US|United States",
+   * "CA|California" — the same "<code>|<name>" token the <select> exposes.
+   */
+  async getRecipient() {
+    const v = async (loc) => loc.inputValue().catch(() => null);
+    return {
+      country: await v(this.shipCountry),
+      firstName: await v(this.shipFirstName),
+      lastName: await v(this.shipLastName),
+      street: await v(this.shipStreet),
+      additional: await v(this.shipAdditional),
+      city: await v(this.shipCity),
+      state: await v(this.shipState),
+      zip: await v(this.shipPostal),
+    };
+  }
+
+  /** Visible State/Province option labels — used to assert the country→state dropdown swap. */
+  async getStateOptionLabels() {
+    return this.shipState.evaluate((s) => [...s.options].map((o) => o.text.trim()));
+  }
+
+  /** Visible Country option labels. */
+  async getCountryOptionLabels() {
+    return this.shipCountry.evaluate((s) => [...s.options].map((o) => o.text.trim()));
+  }
+
+  /**
+   * Fill any subset of the Recipient Info modal fields. Country is set FIRST (the
+   * State/Province list repopulates from it), then State, then the text inputs. Select
+   * values are the "<code>|<name>" tokens (e.g. "CA|Canada", "BC|British Columbia").
+   * Does NOT commit — call commitRecipientModal() after (so the caller can assert the
+   * dropdown swap while the modal is still open).
+   */
+  async fillRecipient({ country, firstName, lastName, street, additional, city, state, zip } = {}) {
+    if (country != null) await this.shipCountry.selectOption(country);
+    if (firstName != null) await this.shipFirstName.fill(firstName);
+    if (lastName != null) await this.shipLastName.fill(lastName);
+    if (street != null) await this.shipStreet.fill(street);
+    if (additional != null) await this.shipAdditional.fill(additional);
+    if (city != null) await this.shipCity.fill(city);
+    if (state != null) {
+      // The State/Province list repopulates from the country ASYNCHRONOUSLY (~1-2s live).
+      // Wait for the target option to appear before selecting, else selectOption races
+      // the swap and throws "no option". Verified live 2026-07-08: US→CAN swaps the list.
+      await this.shipState
+        .locator(`option[value="${state}"]`)
+        .waitFor({ state: 'attached', timeout: 8000 })
+        .catch(() => {});
+      await this.shipState.selectOption(state);
+    }
+    if (zip != null) await this.shipPostal.fill(zip);
+    await this.page.waitForTimeout(300);
+  }
+
+  /**
+   * COMMIT the Recipient Info modal via its own "Update" button. That write only updates
+   * the panel's Shipping To display and closes the modal (no network write) — the sub is
+   * persisted later by clickUpdate() (the panel's "Update Subscription Box"). Waits for
+   * the modal to close.
+   */
+  async commitRecipientModal() {
+    await this.shipModalUpdateBtn.click();
+    await this.shipStreet.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    await this.page.waitForTimeout(300);
+  }
+
+  /**
+   * Close the Recipient Info modal via its "Close" button WITHOUT committing — discards
+   * any edits. Used by the read-only smoke so nothing is ever persisted. The modal's
+   * "Close" (capital C, exact) is distinct from the panel's mat-icon "close".
+   */
+  async closeRecipientModal() {
+    await this.page.getByRole('button', { name: 'Close', exact: true }).click().catch(() => {});
+    await this.shipStreet.waitFor({ state: 'hidden', timeout: 8000 }).catch(() => {});
+    await this.page.waitForTimeout(300);
   }
 
   // ----------------------------------------------------------------------------
@@ -352,14 +646,32 @@ class SubscriptionEditPage extends BasePage {
     await this.page.waitForTimeout(800);
   }
 
-  /** Click the final "I still want to cancel" confirm; returns the subscription-write response. */
+  /**
+   * Confirm cancellation through the app's TWO-STEP flow (verified live 2026-07-16):
+   *   1. Under the expanded reason, click "I still want to cancel"
+   *      (`[data-qa="cancel-btn"]`) — this only OPENS a confirmation modal, no write.
+   *   2. In the "ARE YOU SURE YOU WANT TO CANCEL YOUR SUBSCRIPTION?" modal, click
+   *      "YES, PLEASE CANCEL SUBSCRIPTION" — THAT fires the subscription write and
+   *      redirects to /my-account.
+   * TODO: ask team to add data-qa to the modal's confirm/dismiss buttons — they have
+   * none, so we fall back to their aria-labels ("Click to confirm cancel" /
+   * "Click to close modal without cancelling").
+   * Returns the subscription-write response.
+   */
   async confirmCancel() {
-    const confirm = this.page.locator('[data-qa="cancel-btn"]', { hasText: /still want to cancel|cancel/i }).last();
-    await confirm.waitFor({ state: 'visible', timeout: 15000 });
+    // Step 1 — open the confirmation modal.
+    const stillCancel = this.page
+      .locator('[data-qa="cancel-btn"]', { hasText: /still want to cancel|cancel/i })
+      .last();
+    await stillCancel.waitFor({ state: 'visible', timeout: 15000 });
+    await stillCancel.click();
+
+    // Step 2 — the modal's real confirm fires the write.
+    const modalConfirm = this.page.locator('[aria-label="Click to confirm cancel"]');
+    await modalConfirm.waitFor({ state: 'visible', timeout: 15000 });
     const respP = this.waitForSubscriptionWrite();
-    await confirm.click();
-    const response = await respP;
-    return response;
+    await modalConfirm.click();
+    return await respP;
   }
 
   // ----------------------------------------------------------------------------

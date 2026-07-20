@@ -87,11 +87,16 @@ test.describe('Subscriptions - Cancel Subscription', () => {
       }, { timeout: 30000, message: 'cancelled sub should disappear from the active list' })
       .toBeFalsy();
 
-    // --- Backend round-trip: not in the active GET ---
+    // --- Backend round-trip: the sub is now INACTIVE ---
+    // NOTE: the subscriptions GET returns cancelled subs too (with active:false), so we
+    // assert the `active` flag flipped — NOT absence from the payload.
     if (brand.testAccountId) {
       const subs = await subApi.fetchSubscriptions(page, { baseUrl: brand.baseUrl, accountId: brand.testAccountId });
       subApi.logSubscriptionShape(subs, 'after cancel');
-      expect(subApi.isPresent(subs, { ssc, sfId: createdSfId }), 'cancelled sub should not be active in the backend').toBeFalsy();
+      expect(
+        subApi.isActive(subs, { ssc, sfId: createdSfId }),
+        'cancelled sub should be inactive (active:false) in the backend',
+      ).toBeFalsy();
     } else {
       console.warn('[cancel] brand.testAccountId not set — skipping backend GET assertion');
     }

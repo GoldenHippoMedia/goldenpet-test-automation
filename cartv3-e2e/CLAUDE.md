@@ -97,6 +97,80 @@ remove-modal confirm/cancel buttons do NOT (→ `aria-label` fallback + a logged
 
 ---
 
+## Open Follow-ups & Known Issues (START HERE for anything outstanding)
+
+This is the **single index** of everything outstanding in the suite. Four categories, below.
+When you (or Claude) want to "pick up the TODOs," start here — each category says where the
+full context lives and how to close an item out.
+
+**How to find every open item mechanically** (this index should list them all, but the markers
+are the source of truth):
+```bash
+cd cartv3-e2e && grep -niE 'TODO|when fixed|DevOps TODO|BACKLOG' CLAUDE.md
+```
+
+Quick map:
+- **A. Known open app bugs** — real product defects the suite works around. → table below.
+- **B. Missing `data-qa` (ask team)** — selectors we had to fall back on because no `data-qa` exists. → table below.
+- **C. DevOps asks** — infra/allow-list requests, not test or app bugs. → below.
+- **D. Post-migration backlog** — forward-looking test ideas + architecture improvements. → the [Backlog (post-migration)](#backlog-post-migration) section at the end of this file.
+
+---
+
+### A. Known open app bugs (the suite works around)
+
+Real, filed app bugs the tests have surfaced. Each affected spec is deliberately **relaxed**
+(with the ticket # in a code comment + a soft runtime log) so the suite stays green while the
+defect is tracked — rather than left red as noise.
+
+**When a ticket is fixed:** `grep -rn <TICKET> tests/`, restore the strict assertion, remove
+the workaround/soft-log, re-run the affected spec on UAT to confirm it passes, then delete the
+row here. (The soft logs also flip to a "may be fixed — tighten me" note in the run output.)
+
+| Ticket | Spec | Bug | Test workaround → what to restore when fixed |
+|--------|------|-----|----------------------------------------------|
+| [CART-9082](https://goldenhippomedia.atlassian.net/browse/CART-9082) | `subscription-update-shipping-address.spec.js` | Subscription **Additional Address (`line2`) can be SET but not CLEARED** — emptying it drops the field from the PUT, backend keeps the old value. | Asserts line2 *sets* only; never restores it to empty. When fixed: assert clearing empties line2 (UI + backend). |
+| [CART-9120](https://goldenhippomedia.atlassian.net/browse/CART-9120) | `subscription-skip-next-order.spec.js` | **Skip modal previews the wrong skip-to date** — computes +60 days vs the backend's +2 calendar months, so it's off by a day for multi-month cadences. | Asserts date *advanced forward* + summary matches the backend; soft-logs the modal-preview mismatch. When fixed: restore strict `sameDisplayDate(summary, next)`. |
+
+### B. Missing `data-qa` — ask the team to add (with current fallback)
+
+Elements we target by a **fallback** selector (id / role / aria-label / text) because the app
+exposes no `data-qa` yet. Consolidated here for a single "please add data-qa" ask to the team;
+full context for each lives inline in the **Selector Reference** section under the named page.
+**When the team adds a `data-qa`:** switch the page object to it, drop the fallback, and delete
+the row here. (The team keeps adding `data-qa` — re-audit a page before trusting these.)
+
+| Page / area (Selector Reference) | Element(s) with no `data-qa` | Current fallback |
+|----------------------------------|------------------------------|------------------|
+| Checkout Page (`/checkout`) | Header region `#page-header` (`<linkless-page-header>`) | `#page-header` id/structure |
+| Manage Payments (`/payment-details`) | Saved-card list cards; remove-modal **confirm** ("YES") + **cancel** ("NEVERMIND") buttons | class/text for cards; `aria-label` for modal buttons |
+| Manage Account (`/account-details`) | Section "Edit" link; inline validation error | `<p>`-text "Edit"; `.invalid-message` |
+| Order History (`/order-history`) | Order cards + their buttons | class/text-based |
+| Subscription Editor (`/subscription-edit`) | Quantity select; Recipient Info modal **Update**/**Close** buttons; "Yes, I want to update" agreement checkbox; Ship Now **success popup** | `select#quantityId`; exact-name/`Close`; label-text; copy-match (apostrophe-agnostic) |
+| Subscription cancellation (`/subscription-cancellation`) | Cancel-confirm modal **confirm** + **dismiss** buttons | `aria-label` (`Click to confirm cancel` / `Click to close modal without cancelling`) |
+
+### C. DevOps asks (infra — not test/app bugs)
+
+- **Cloudflare rate-limit allow-list for QA `@real-order` / add-card traffic.** Repeated real
+  orders (and add-card) trip a **velocity-based** CF rate-limit ("Too many requests" toast,
+  Submit/ADD CARD stuck disabled). This is separate from the bot-wall that `QA_UA_TOKEN`
+  already clears. **Ask:** add an exception on the *rate-limit* rule keyed on the
+  `DrMartyQA/<token>` UA or a secret header/cookie (NOT IP — QA IPs are dynamic), covering
+  `*/commerce-service/proxy/{cart,tax}/*`, `*/account-service/proxy/*`,
+  `*/payment-service/proxy/*`, and the order-submit endpoint. Full diagnosis in the **Known
+  Issues** note near the end of this file. Workaround today: space `@real-order` runs; submit
+  from `/cart` (sidesteps the `/checkout` challenge).
+- **`QA_UA_TOKEN` allow-list on each NEW brand's UAT Cloudflare zone** before running the suite
+  there (else logged-in navs hit the bot wall). See Backlog "Brand-portability".
+
+### D. Post-migration backlog
+
+Forward-looking test ideas + architecture improvements (incl. the SDET-maturity items:
+data-isolation, pushing the mutation matrix to API tests, the cancel-spec parallel-safety fix).
+→ see the [Backlog (post-migration)](#backlog-post-migration) section at the end of this file.
+
+---
+
 ## Repository Structure
 
 ```
@@ -107,6 +181,7 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
     ├── .env                     # BRAND, ENVIRONMENT, credentials (gitignored)
     ├── playwright.config.js
     ├── package.json             # cartv3:* npm scripts
+    ├── run-brands.js            # run spec(s) across multiple brands sequentially (BRANDS=drmarty,badlands)
     ├── data/
     │   ├── site-config.json     # brand URLs, paths, content strings, test address & card
     │   ├── shipping-address-cases.json # data-driven country cases for the Manage Account shipping test
@@ -177,11 +252,15 @@ goldenpet-test-automation/      # repo root — holds .gitignore only; each tool
         ├── checkout-country-state.spec.js           # ✅ verified green here — US/CAN country→state + intl zip (guest, data-driven)
         ├── checkout-prepopulate.spec.js             # ✅ verified green here — logged-in customer+shipping pre-populate
         ├── country-options-restricted.spec.js       # ✅ verified green on PROD (skips UAT) — Country dropdown = exactly US + CAN (/account-details + /checkout)
-        ├── subscription-skip-next-order.spec.js     # ⏳ ported, pending verification — skip + self-heal (UAT + prod)
-        ├── subscription-update-next-order-date.spec.js # ⏳ ported, pending verification — edit next-order date + self-heal (UAT + prod); finishes GI's unfinished 🚧 test
-        ├── subscription-update-quantity.spec.js     # ⏳ ported, pending verification — change qty + self-heal (UAT + prod)
-        ├── subscription-ship-now.spec.js            # ⏳ ported, pending verification — Ship Now + self-heal date (UAT + prod; places HQ-suppressed order on prod)
-        └── subscription-cancel.spec.js              # ⏳ ported, pending verification — cancel a disposable sub (UAT-only, @real-order)
+        ├── subscription-skip-next-order.spec.js     # ✅ verified green (drmarty UAT, headed 2026-07-16) — skip + self-heal (UAT only per env policy)
+        ├── subscription-update-next-order-date.spec.js # ✅ verified green (drmarty UAT, headed 2026-07-16) — edit next-order date + self-heal; finishes GI's unfinished 🚧 test; +date-range validation test
+        ├── subscription-update-quantity.spec.js     # ✅ verified green (drmarty UAT, headed 2026-07-16) — change qty + self-heal; +min-qty guard
+        ├── subscription-update-frequency.spec.js    # ✅ verified green (drmarty UAT, headed 2026-07-16) — NEW (no GI) change delivery frequency + self-heal
+        ├── subscription-update-payment.spec.js      # ✅ verified green (drmarty UAT, headed 2026-07-16) — NEW (no GI) switch payment method + self-heal
+        ├── subscription-update-shipping-address.spec.js # ✅ verified green (drmarty UAT, headed 2026-07-16) — NEW (no GI) change delivery street + self-heal
+        ├── subscription-ship-now.spec.js            # ✅ verified green (drmarty UAT, headed 2026-07-16) — Ship Now + self-heal date (UAT only per env policy — places a real sandbox order)
+        ├── subscription-cancel.spec.js              # ✅ verified green (drmarty UAT, headed 2026-07-16) — cancel a disposable sub (UAT-only, @real-order); needed two-step-modal fix
+        └── subscription-guards.spec.js              # ✅ verified green (drmarty UAT, headed 2026-07-16) — NEW auth redirect + non-destructive cancel back-out (UAT + prod)
 ```
 
 ---
@@ -458,32 +537,51 @@ Thank You Page (1)
   discount/upsell-order-ID display + cart→TY product/email identity; the core confirmation
   asserts overlap with `order-loggedin-checkout-cc.spec.js` (kept — dedicated DISPLAY test).
 
-Subscription Management — ⏳ all ported (pending verification here, 2026-06-17)
+Subscription Management — ✅ all 9 specs verified green (drmarty UAT, headed, 2026-07-16)
+> **Still TODO for this batch:** headless UAT sweep (drmarty + badlands via `cartv3:multi`) and a prod spot-check of the two prod-eligible specs (guards + shipping smoke). The 2026-07-16 verification was drmarty UAT (headed); badlands UAT (headed) also green (13 pass / 1 expected skip).
+>
+> **ENV POLICY (set 2026-07-16, IDENTICAL for drmarty + badlands):**
+> - **UAT** runs **everything** (all mutations + order placement — Braintree sandbox, safe).
+> - **Prod** runs **NON-DESTRUCTIVE only**: `guards` (auth redirect + retention back-out) and
+>   `update-shipping-address` (read-only render/dropdown-swap smoke). Everything that mutates
+>   a real sub or places an order is `test.skip(process.env.ENVIRONMENT === 'prod')`:
+>   skip, next-order-date, quantity, frequency, payment (mutating self-heal) + ship-now, cancel
+>   (order-placers). Rationale: the write logic is env-identical, so prod mutation adds little,
+>   while a failed prod self-heal could corrupt a real sub and ship-now/cancel place real orders
+>   (and BLR's auto-refund/fulfillment-suppression nets are unconfirmed). Prod's real risk is
+>   config/content/routing (e.g. the `/subscription-management` routing bug), which the two
+>   non-destructive specs cover. To change: grep `ENVIRONMENT === 'prod'` in `tests/subscription-*`.
+
+| Spec | UAT | Prod |
+|------|:---:|:----:|
+| skip, next-order-date, quantity, frequency, payment | ✅ full | ⏭️ skip (mutating self-heal) |
+| ship-now, cancel | ✅ full (sandbox order) | ⏭️ skip (places real order) |
+| guards | ✅ | ✅ (non-destructive) |
+| update-shipping-address | ✅ full mutation | ✅ read-only smoke |
 The 6 GI "Subscriptions - *" tests (the extra batch beyond the initial migration) become
 **5 specs** on the `/subscription-edit` editor (the GMD `/sub-history` "Ship Now" variant
 is intentionally dropped — that brand is retired; DMP/BLR use the `/subscription-edit` UI).
 All are brand-agnostic (platform app-builder `data-qa`) and backed by the new
 `pages/subscription-edit.page.js`, `helpers/subscription-api.js`, and
 `helpers/subscription-dates.js`. Live `data-qa` + behavior audit done 2026-06-17 (see the
-"Subscription Editor" selector reference below). npm: `cartv3:subscription:{all,skip,next-date,quantity,ship-now}:{uat,prod}` + `cartv3:subscription:cancel:uat`.
+"Subscription Editor" selector reference below). npm: `cartv3:subscription:{all,skip,next-date,quantity,frequency,payment,shipping,ship-now,guards}:{uat,prod}` + `cartv3:subscription:cancel:uat`.
 
 - `subscription-skip-next-order.spec.js` — GI: "Skip Next Order". Existing sub; snapshot
   date → "Skip next order" → assert the post-skip summary date == the date the confirm
   modal promised (`[data-qa="next-date"]`) + the skip write is 2xx + backend still active
-  → **self-heal** the date back. **UAT + prod** (GI was EXCLUDE-PROD only because it
-  placed a sub; self-heal removes that need).
+  → **self-heal** the date back. **UAT only** — per the env policy above, prod runs
+  non-destructive subscription checks only (this spec mutates a real sub via self-heal).
 - `subscription-update-next-order-date.spec.js` — GI: "Next Order Date" (which was
   UNFINISHED in GI — 🚧, exited before its write ran). **Finished here:** expand Delivery
   Frequency → set the editable `input[type=date][data-qa="next-order-date"]` → Update →
-  assert UI + backend round-trip → self-heal restore. **UAT + prod**.
+  assert UI + backend round-trip → self-heal restore. **UAT only** (env policy above).
 - `subscription-update-quantity.spec.js` — GI: "Update Quantity". Change `select#quantityId`
-  → Update → assert UI + backend → self-heal restore qty. **UAT + prod**.
+  → Update → assert UI + backend → self-heal restore qty. **UAT only** (env policy above).
 - `subscription-ship-now.spec.js` — GI: "Ship Now Button" (non-GMD). Find a sub whose
   "Ship Now!" is available (skip-pass if none, like GI), ship it, assert the success popup
-  + the next-order date advanced + write 2xx → self-heal date. **UAT + prod.** ⚠️ Ship Now
-  places a REAL order on prod (fulfillment suppressed for the QA HQ address per backend
-  automation — that's why prod is allowed); it's the only spec here that places an order
-  on prod. Gate with `test.skip(brand.env === 'prod')` if that ever changes.
+  + the next-order date advanced + write 2xx → self-heal date. **UAT only** — Ship Now places
+  a REAL order (Braintree sandbox on UAT), so it's gated off prod per the env policy above
+  (same for drmarty + badlands; BLR's auto-refund/fulfillment-suppression nets are unconfirmed).
 - `subscription-cancel.spec.js` — GI: "Cancel Subscription". Cancel is an irreversible
   soft-delete, so it can't self-heal an existing sub: it places a **throwaway** sub
   (`loggedin_sub_2`), cancels THAT (Cancel Subscription Box → `/subscription-cancellation`
@@ -491,14 +589,62 @@ All are brand-agnostic (platform app-builder `data-qa`) and backed by the new
   asserts it drops from the active list (UI) + backend GET (`active:false`). Because it
   places a real (card-charging) order, it stays **UAT-only** + `@real-order` (GI: EXCLUDE
   PROD). `afterEach` safety-cancels a stray sub if the test died before cancelling.
+- `subscription-update-frequency.spec.js` — **NEW (no GI source).** Changes the delivery
+  cadence (`frequency-select`) on an existing sub → asserts write 2xx + toast + UI reload
+  + backend `frequency` changed → self-heal restore. **UAT only** (env policy above).
+- `subscription-update-payment.spec.js` — **NEW (no GI source).** Switches the sub's
+  payment method (`payment-select`) to another saved method → write 2xx + UI reload
+  (asserts by option VALUE, since labels dup on the shared account) + backend active →
+  self-heal restore. **UAT only** (env policy above).
+- `subscription-update-shipping-address.spec.js` — **NEW (no GI source).** TWO layers,
+  split by env so a real prod sub is never irreversibly mutated:
+  - **Full-form mutation test — UAT ONLY** (`test.skip(brand.env === 'prod')`). Changes the
+    ENTIRE delivery recipient (country, first/last name, street, additional line, city,
+    state, zip) via the "Change" link's "Recipient Info" MODAL → asserts the
+    Country→State/Province dropdown swap → write 2xx + UI reload (every field) + backend
+    record carries the values → self-heal restore. **Data-driven** from
+    `data/subscription-address-cases.json` (one `test()` per country; `-g "United States"` /
+    `-g "Canada"`). Uses **per-run UNIQUE values** (timestamp-suffixed street + additional)
+    so a green assert PROVES a fresh write landed — not a stale-state coincidence
+    (change-detection: asserts the persisted value `!==` the original).
+  - **Read-only render/dropdown-swap smoke — PROD ONLY** (`test.skip(brand.env !== 'prod')`).
+    Opens the form, asserts it renders + the US↔CAN state-dropdown swap works, then closes
+    WITHOUT saving. Catches prod-specific render/config bugs with zero data mutation.
 
-> **First-run TODOs (pin once green):** (1) the exact subscription WRITE endpoint sub-paths
-> (skip/ship/update/cancel) are logged by `SubscriptionEditPage.waitForSubscriptionWrite()`
-> — assertions currently key off method + 2xx, not the path; (2) the subscriptions record's
-> field names (nextOrderDate / quantity / active) are logged by
-> `subApi.logSubscriptionShape()` — tighten the backend field-level asserts (right now the
-> backend check is active-list membership). Both are intentionally path/shape-tolerant so a
-> first run can't red-fail on an unconfirmed contract.
+  Tests persistence through the SUBSCRIPTION write endpoint specifically (the field-level
+  validation matrix on this same component is covered by
+  `account-update-shipping-address.spec.js`, which hits the /account endpoint).
+  ⚠️ **KNOWN APP BUG — CART-9082:** the Additional Address line (backend `line2`) can be SET
+  but not CLEARED — emptying it drops the field from the PUT and the backend keeps the old
+  value. The spec asserts line2 SETS correctly and deliberately does NOT rely on clearing it
+  (so it's green whether the bug is present or fixed). Discovered via live audit 2026-07-08.
+- `subscription-guards.spec.js` — **NEW.** Cross-cutting, non-destructive: (1) logged-out
+  `/subscription-edit` redirects to `/login`; (2) reaching the cancellation page and
+  opening a reason does NOT cancel — only the final confirm does (retention back-out;
+  asserts the sub stays active via UI + backend). **UAT + prod.**
+
+Extra non-GI checks folded into the update specs: the next-order-date spec has a second
+**date-range validation** test (past/today/beyond-max rejected via the input's min/max +
+`update-btn` stays disabled); the quantity spec guards that offered quantities are ≥ 1;
+the skip spec has a second **repeatable-skip** test (a second skip advances again); the
+quantity + frequency specs assert the edit-panel **order-summary math** (grand total =
+subtotal + tax + shipping) via `SubscriptionEditPage.assertSummaryMath()`. The quantity spec
+also **independently recomputes** New Subtotal = unit price × new qty (via
+`getSelectedQuantityUnitPrice()`, parsed from the "N - $X.XX / unit" option) so a mispriced
+quantity is caught even if the UI + backend agree on the same wrong number.
+
+> **Backend contract (CONFIRMED live 2026-07-08, drmarty UAT):**
+> - **Write:** all edits are `PUT /account-service/proxy/subscriptions/{accountId}/{subId}`
+>   → 200 (skip/ship/update/cancel all hit this path; assertions key off method + 2xx, which
+>   is fine — the path is now known and stable).
+> - **Record shape** (from `subApi.logSubscriptionShape()`): `id, type, name, active,
+>   frequency, startDate, endDate, accountId, subtotal, localeSubtotal, tax, localeTax,
+>   shipping, localeShipping, nextOrderDateTime, lastOrderDate, shippingAddress, orderItems,
+>   coupon, payment, addOns`. So: next-order date = **`nextOrderDateTime`**, cadence =
+>   **`frequency`**, status = **`active`**; there is NO top-level `quantity` (it's inside
+>   `orderItems`). `shippingAddress` is a nested object: `firstName, lastName, line1, line2,
+>   city, countryCode, country, postalCode, regionCode, region` (line2 = the Additional
+>   Address — see CART-9082). Field-level backend asserts can be tightened against these.
 
 > When a test is verified green in this repo, move it to a "Verified here" section above.
 
@@ -527,6 +673,13 @@ npm run cartv3:debug -- tests/login.spec.js
 
 # View HTML report
 npm run report
+
+# Run a single brand: override BRAND (the fixture reads it once per process)
+HEADED=1 BRAND=badlands ENVIRONMENT=uat npx playwright test tests/subscription-update-quantity.spec.js
+
+# Run the SAME spec(s) across MULTIPLE brands, sequentially (one run per brand, via run-brands.js):
+#   BRANDS defaults to "drmarty,badlands", ENVIRONMENT to "uat"; HEADED/SLOWMO inherited.
+BRANDS=drmarty,badlands ENVIRONMENT=uat npm run cartv3:multi -- tests/subscription-*.spec.js
 ```
 
 `playwright.config.js` has `retries: 0` — tests do NOT auto-retry on failure. Fix the test before re-running.
@@ -1030,19 +1183,34 @@ selecting one renders that sub's summary client-side. "Delivery and payment"
 | Frequency expander / select | `[data-qa="frequence-toggle"]` (sic) / `[data-qa="frequency-select"]` (Every week … Every year) |
 | Quantity select | `select#quantityId` — **NO data-qa** (GI's `quantity-select` is gone; TODO: ask team). Blank 1st option, then "N - $X.XX / unit" |
 | Payment select / manage link | `[data-qa="payment-select"]` / `[data-qa="payment-options-link"]` |
-| Ship-to name/address/zip; change link | `[data-qa="ship-to-name"/"ship-to-address"/"ship-to-zipcode"]`, `[data-qa="change-shipping-address-link"]` |
+| Ship-to name/address/zip; change link | `[data-qa="ship-to-name"/"ship-to-address"/"ship-to-zipcode"]`, `[data-qa="change-shipping-address-link"]` (opens the Recipient Info MODAL, below) |
+| **Recipient Info address modal** (opened by change link) | reused `<address-form>`, SINGLE-dash suffix: `[data-qa="ship-country-"/"ship-street-address-"/"ship-additional-address-line-"/"ship-city-"/"ship-state-"/"ship-postal-code-"]`. Its OWN commit button is a plain `<button>Update</button>` (**NO data-qa**; distinguish from the panel by exact name "Update" vs "Update Subscription Box") + a `Close` button (no data-qa). Clicking modal Update writes the address into the panel's Ship-to DISPLAY and closes the modal — **no network write**; persistence is the panel `update-btn`. TODO: ask team for data-qa on the modal Update/Close. |
 | Order summary | `[data-qa="subtotal-original"/"subtotal-new"/"tax"/"shipping"/"grand-total"]` |
-| Update / Cancel box; close | `[data-qa="update-btn"]` / `[data-qa="cancel-btn"]` ("Cancel Subscription Box") / `[data-qa="subscription-edit-close-btn"]` |
+| "Yes, I want to update" agreement checkbox | **NO data-qa** — `div[role="button"].checkbox` wrapping a `<mat-icon>` (`check_box_outline_blank`↔`check_box`), label `<p class="checkbox-label">Yes, I want to update my subscription!</p>`. **Must tick to enable `update-btn`.** Locate by the label text. TODO: ask team for a data-qa. |
+| Update / Cancel box; close | `[data-qa="update-btn"]` (disabled until the agreement checkbox is ticked) / `[data-qa="cancel-btn"]` ("Cancel Subscription Box") / `[data-qa="subscription-edit-close-btn"]` |
 | Sub name (in panel) / image / price / savings | `[data-qa="subscription-name"/"subscription-image"/"subscription-price"/"subscription-savings"]` |
 | **Skip modal** | container `[data-qa="skip-next-order-modal"]`; `skip-date` (current) → `next-date` (skips to); `skip-confirm-btn` / `skip-cancel-btn` |
-| **Ship Now modal** | container `[data-qa="ship-order-now-modal"]`; `ship-confirm-btn` ("Yes, Ship Now") / `ship-cancel-btn` ("No Thanks"). Success popup ("You're all set!"/"Order Confirmed") has **no data-qa** — matched by copy + a `mat-icon` close (TODO) |
-| **Cancellation page** (`/subscription-cancellation/{sfId}`) | `subscription-id` (SSC), `next-ship-date`; reason accordions `[data-qa="reason-toggle"]` (one per reason; expand "ANOTHER REASON - CANCEL NOW" — Builder copy, brand-configurable via `brand.content.cancelReason`); final confirm REUSES `[data-qa="cancel-btn"]` ("I still want to cancel") |
+| **Ship Now modal** | container `[data-qa="ship-order-now-modal"]`; `ship-confirm-btn` ("Yes, Ship Now") / `ship-cancel-btn` ("No Thanks"). Success popup ("You're all set!"/"Order Confirmed") has **no data-qa** — matched by copy + a `mat-icon` close (TODO). ⚠️ The copy uses a **typographic apostrophe (U+2019 "'"), not ASCII** — text matchers must be apostrophe-agnostic (`[’']?`) or they silently miss the popup (verified 2026-07-14). Applies to any copy-based matcher against this app. |
+| **Cancellation page** (`/subscription-cancellation/{sfId}`) | `subscription-id` (SSC), `next-ship-date`; reason accordions `[data-qa="reason-toggle"]` (one per reason; expand "ANOTHER REASON - CANCEL NOW" — Builder copy, brand-configurable via `brand.content.cancelReason`). ⚠️ **TWO-STEP confirm (verified live 2026-07-16):** (1) `[data-qa="cancel-btn"]` ("I still want to cancel") only OPENS an "ARE YOU SURE…" modal (no write); (2) the modal's real confirm fires the write + redirects to `/my-account`. The modal's two buttons have **NO data-qa** → fall back to `aria-label`: confirm = `[aria-label="Click to confirm cancel"]` ("YES, PLEASE CANCEL SUBSCRIPTION"), dismiss = `[aria-label="Click to close modal without cancelling"]` ("DO NOT CANCEL"). **TODO: ask team to add data-qa to the cancel-confirm modal buttons.** `SubscriptionEditPage.confirmCancel()` clicks both steps. |
 
-**Behavior gotchas (audited):**
-- **No agree-checkbox / no "Review and finalize" step** — GI's `.checkbox > mat-icon` and
-  the separate review click are GONE. Making any valid change (qty/date/frequency/payment)
-  ENABLES `update-btn` directly; click it to write. (A *synthetic* JS change won't dirty
-  the Angular form — Playwright's `selectOption`/`fill` does, so `update-btn` enables.)
+**Behavior gotchas (audited live 2026-07-08, drmarty UAT):**
+- **`update-btn` is gated by the "Yes, I want to update my subscription!" agreement box —
+  a valid change is NOT enough.** After changing qty/date/frequency/payment/address,
+  `update-btn` stays DISABLED until that box is ticked. It has **NO data-qa** — it's a
+  custom `div[role="button"].checkbox` wrapping a `<mat-icon>` (NOT an `<input
+  type=checkbox>`, so a checkbox-input scan won't find it), located by its label text
+  "Yes, I want to update my subscription!". `SubscriptionEditPage.clickUpdate()` ticks
+  `this.agreeCheckbox` when `update-btn` is still disabled, then waits for it to enable.
+  ⚠️ The earlier `[data-qa="terms-checkbox"]` documented here was a WRONG guess — that
+  attribute never existed in the DOM, so the old `clickUpdate()` silently no-op'd the tick
+  and `update-btn` never enabled (waitForSubscriptionWrite then timed out). This gates
+  ALL update specs, not just shipping.
+- **Editing the delivery address is a SEPARATE modal, not inline.** The Ship-to "Change"
+  link (`change-shipping-address-link`) opens a "Recipient Info" modal with its own
+  `<button>Update</button>` (no data-qa). You must click THAT to commit the edited street
+  into the panel display (it fires no network write + closes the modal); only then does
+  the panel `update-btn` persist. `setShippingAddress()` fills the modal fields and clicks
+  the modal Update; the spec then calls `clickUpdate()` for the panel write.
 - **Two `data-qa="next-order-date"` elements** — the summary `<div>` (display) and the
   editable `<input type=date>` (in the expanded frequency section). Never use a bare
   `[data-qa="next-order-date"]` — scope with `div`/`input`.
@@ -1212,11 +1380,13 @@ Capture ideas here so they don't get lost. Don't action until the migration is d
       `FREE!`, not `$0.00` — the old `$0.00` literal had silently drifted red).
 
     Each spec falls back to the drmarty default when a brand omits the field, and no
-    `data-qa` selectors were touched. **Badlands**: `primaryDomain`
-    (`badlandsranch.com`) + `freeShippingText` (`FREE!`) are populated; the unknown
-    ones are loud `TODO_CONFIRM_BADLANDS_*` placeholders (coupon, phone, weekday +
-    weekend hours) — confirm those with the team and fill them in before running these
-    specs on Badlands.
+    `data-qa` selectors were touched. **✅ Badlands — all fields confirmed + filled in
+    (2026-07-20):** `primaryDomain` (`badlandsranch.com`), `freeShippingText` (`FREE!`),
+    `validCoupon` (`AUTOTEST1` — same coupon as drmarty), `csPhone` (`888-872-4522`),
+    `csHours.weekday` (`Mon-?Fri.*PT`), `csHours.weekend` (`Sat-?Sun.*PT`) — confirmed
+    live: Mon–Fri 6am–5pm PT, Sat–Sun 6am–4pm PT (regex-source strings, same tolerant
+    pattern style as drmarty's, PT vs drmarty's PST). No more `TODO_CONFIRM_BADLANDS_*`
+    placeholders remain in `data/site-config.json`.
   - **Brand-clean today (code), but verify the brand's content matches:**
     `checkout-prepopulate` (asserts vs the brand's own account record — fully portable);
     `checkout-form-validation` (platform validation copy; the required-field map lives in
@@ -1226,6 +1396,54 @@ Capture ideas here so they don't get lost. Don't action until the migration is d
     brand's `loggedin_sub_2`).
   - Badlands specifically still has only placeholder CSVs + no test account, so it
     can't run until that data lands.
+
+### Architecture / test-maturity improvements (SDET backlog — aspirational, post-migration)
+
+These are where a mature/"FAANG-style" test org would diverge from the current design. The
+current approach is a sound, above-average **Ghost Inspector → Playwright migration** (it adds
+backend asserts, env-safety, and self-heal the GI originals lacked) — these items are the next
+level up, to tackle once the port is done and merged, NOT in the migration branch.
+
+- **Data isolation over shared-account self-heal.** Today the mutating specs snapshot →
+  mutate → assert → restore on ONE shared Salesforce test account per brand. The textbook
+  approach is *ephemeral/isolated test data*: a fresh (or reset) account seeded per run,
+  DB/API fixtures, or transactional rollback — so a test never depends on restoring state
+  correctly and can't pollute a sibling. Driver: the current model is fragile — a failed
+  self-heal poisons the next run, and there's a shared-account race (see the cancel item
+  below). Open questions: can QA provision/seed accounts on demand (SF sandbox refresh, an
+  account-factory API)? Is per-run isolation worth the infra vs. the current restore pattern?
+
+- **Push the mutation matrix down to API/integration tests (test pyramid).** The
+  quantity/frequency/date/payment/shipping permutations are currently exercised through full
+  browser + login E2E (slow — the BLR sub run was ~5.7 min — and flake-prone). A mature suite
+  keeps UI E2E to a thin layer of critical happy paths and covers the field/permutation matrix
+  at the API layer (the `PUT /account-service/proxy/subscriptions/{acct}/{sub}` contract is
+  already known — see "Backend contract"). Likely a new sibling tool folder (`api-tests/`) per
+  the monorepo convention, not code in `cartv3-e2e/`. Driver: speed, stability, and pyramid
+  shape. Keep the existing E2E as the thin top layer.
+
+- **`subscription-cancel` shared-account race — tighten before any parallel `@real-order`.**
+  The spec identifies its throwaway sub via `list.find(s => !beforeSscs.has(s.ssc))` (first
+  SSC not present before). It can never pick a *pre-existing* sub, but if two brand-new subs
+  appear between snapshot and poll (concurrent run on the same account, or one order spawning
+  two subs) it could pick the wrong *new* one. Safe today because `@real-order` runs serially;
+  if these ever run parallel on one account, match on the just-placed product/order id instead
+  of "first new SSC." Driver: correctness under parallelism. (Same shared-account caveat
+  applies to any self-heal spec run concurrently.)
+
+- **(Nice-to-have, low priority) UI subscription lifecycle canary.** A single *additive*
+  spec (`subscription-lifecycle.spec.js`) that walks one throwaway sub through
+  create → a couple of updates → cancel via `test.step()`s, owning + cleaning its own data.
+  It would **not** replace or re-wire the 9 granular specs (which stay independent + parallel
+  + self-healing — that's the regression layer); it's a coarse end-to-end smoke on top.
+  **Explicitly rejected:** re-wiring all 9 specs to share ONE created SSC (setup→serial→teardown)
+  — that couples the specs, forces serial runs, and makes the create-order a single point of
+  failure, trading away test independence for a cleanliness the self-heal + throwaway-cancel
+  patterns already provide. **Note:** the create→update→cancel lifecycle is cheaper, faster,
+  isolated, and rate-limit-free at the **API layer** (see the item above) — so if the
+  API-tests investment happens, that's the better home for this lifecycle and the UI canary
+  becomes unnecessary. Only add the UI canary if you want a browser-level owned-data smoke
+  before the API layer exists.
 
 - **Known catalog bug (Jira filed)** — Cart and Order Confirmation render different display names for the Tilly's Treasures variant ("Tilly's Treasure Beef Liver Treats" vs "Dr. Marty Tilly's Treasures - 1 Bag"). `assertProductNamesMatch` in `helpers/order-validations.js` is intentionally left strict so it keeps surfacing this mismatch — do NOT loosen the helper to make the test pass; the fix belongs in the catalog data.
 

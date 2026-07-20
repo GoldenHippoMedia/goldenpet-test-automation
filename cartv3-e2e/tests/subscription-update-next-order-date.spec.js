@@ -13,11 +13,17 @@ const { addDaysIso } = require('../helpers/subscription-dates');
 // data-qa="next-order-date"> (distinct from the summary display <div> of the same
 // data-qa). Setting it + Update writes the new date.
 //
-// Runs UAT + prod via self-heal (snapshot the ISO value -> set a new date -> assert ->
-// restore). No order placed.
+// Self-heals (snapshot the ISO value -> set a new date -> assert -> restore); no order
+// placed. Gated UAT-only (see the env-matrix note below).
 
 test.describe('Subscriptions - Update Next Order Date', () => {
   test.slow();
+
+  // Prod runs NON-DESTRUCTIVE subscription checks only (guards + the shipping-address
+  // read-only smoke). This spec mutates a real sub via self-heal, so it is UAT-only: the
+  // write logic is identical on prod, and a failed prod self-heal could leave a real sub
+  // mis-scheduled. Same gate for drmarty + badlands. See CLAUDE.md "Subscription Management".
+  test.skip(process.env.ENVIRONMENT === 'prod', 'UAT-only: mutating self-heal spec; prod subscription coverage is non-destructive only.');
 
   let pageObj = null;
   let snapshot = null; // { sfId, origIso }
@@ -31,13 +37,13 @@ test.describe('Subscriptions - Update Next Order Date', () => {
     await loginPage.login();
     await subPage.goto();
 
-    await subPage.selectSubscription({ index: 0 });
+    // Walk the dropdown for the first sub with an editable next-order date (some subs
+    // lack edit controls). On success the edit panel + frequency section are already open.
+    const chosen = await subPage.pickEditableSubscription({ needDateInput: true });
+    test.skip(!chosen, 'No subscription with an editable next-order date on this account.');
     const sfId = await subPage.getSelectedSfId();
     const ssc = await subPage.getSelectedSsc();
     test.info().annotations.push({ type: 'Subscription', description: `${ssc} (${sfId})` });
-
-    await subPage.openDeliveryPayment();
-    await subPage.openFrequencySection();
 
     // The date input value is ISO "YYYY-MM-DD" — use it as the source of truth (no
     // locale parsing) for both the new date and the restore.
@@ -61,14 +67,65 @@ test.describe('Subscriptions - Update Next Order Date', () => {
     await subPage.openFrequencySection();
     expect(await subPage.getNextOrderDateInputValue(), 'new next-order date should persist').toBe(newIso);
 
-    // --- Backend round-trip ---
+    // --- Backend round-trip: sub still active AND the new date persisted ---
     if (brand.testAccountId) {
       const subs = await subApi.fetchSubscriptions(page, { baseUrl: brand.baseUrl, accountId: brand.testAccountId });
-      subApi.logSubscriptionShape(subs, 'after date update'); // first-run: reveals the date field name
-      expect(subApi.isPresent(subs, { sfId, ssc }), 'sub should still be active in the backend').toBeTruthy();
+      subApi.logSubscriptionShape(subs, 'after date update');
+      const rec = subApi.findBySfId(subs, sfId);
+      expect(rec, 'sub should be present in the backend').toBeTruthy();
+      expect(rec.active, 'sub should still be active').toBe(true);
+      expect(
+        subApi.nextOrderDatePart(rec),
+        `backend nextOrderDateTime date-part should equal the date we set (${newIso})`,
+      ).toBe(newIso);
     } else {
       console.warn('[update-next-order-date] brand.testAccountId not set — skipping backend GET assertion');
     }
+  });
+
+  // NEGATIVE / validation coverage — the next-order date is an <input type="date"> with
+  // declared min (no earlier than ~tomorrow) and max (~6 months out). A subscription
+  // shipment can't be scheduled in the past, so out-of-range dates must be rejected.
+  // Nothing is submitted here, so there's no state to restore (snapshot left null →
+  // afterEach no-ops).
+  test('rejects out-of-range next order dates (past / today / beyond max)', async ({ page, brand }) => {
+    const loginPage = new LoginPage(page, brand);
+    const subPage = new SubscriptionEditPage(page, brand);
+    pageObj = subPage;
+    snapshot = null; // nothing to self-heal — never submits
+
+    await loginPage.goto();
+    await loginPage.login();
+    await subPage.goto();
+
+    const chosen = await subPage.pickEditableSubscription({ needDateInput: true });
+    test.skip(!chosen, 'No subscription with an editable next-order date on this account.');
+
+    // 1) The control declares sane bounds: min not in the past, max after min.
+    const { min, max } = await subPage.getNextOrderDateBounds();
+    const todayIso = new Date().toISOString().slice(0, 10);
+    expect(min, 'date input should declare a min').toBeTruthy();
+    expect(max, 'date input should declare a max').toBeTruthy();
+    expect(min >= todayIso, `min (${min}) must not be in the past (today ${todayIso})`).toBe(true);
+    expect(max > min, `max (${max}) must be after min (${min})`).toBe(true);
+
+    // 2) A PAST date (one day before min — i.e. today or earlier) is flagged out-of-range,
+    //    and Update cannot be triggered for it (stays disabled even after acknowledging terms).
+    await subPage.setNextOrderDateInput(addDaysIso(min, -1));
+    expect(
+      (await subPage.getNextOrderDateValidity()).rangeUnderflow,
+      'a date before min should be flagged rangeUnderflow',
+    ).toBe(true);
+    await subPage.agreeCheckbox.click({ timeout: 5000 }).catch(() => {});
+    await expect(subPage.updateBtn, 'Update must stay disabled for a past date').toBeDisabled();
+
+    // 3) A date BEYOND max is likewise rejected.
+    await subPage.setNextOrderDateInput(addDaysIso(max, 1));
+    expect(
+      (await subPage.getNextOrderDateValidity()).rangeOverflow,
+      'a date after max should be flagged rangeOverflow',
+    ).toBe(true);
+    await expect(subPage.updateBtn, 'Update must stay disabled for a date beyond max').toBeDisabled();
   });
 
   test.afterEach(async () => {

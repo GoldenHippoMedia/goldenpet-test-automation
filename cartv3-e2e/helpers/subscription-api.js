@@ -112,11 +112,29 @@ function findBySfId(payload, sfId) {
   return subscriptionList(payload).find((r) => JSON.stringify(r).includes(sfId));
 }
 
-/** True if a sub matching ssc/sfId is present in the ACTIVE list returned by the GET. */
+/** True if a sub matching ssc/sfId is present in the list returned by the GET. */
 function isPresent(payload, { ssc = null, sfId = null } = {}) {
   if (ssc) return !!findBySsc(payload, ssc);
   if (sfId) return !!findBySfId(payload, sfId);
   return false;
+}
+
+/**
+ * True if the sub is ACTIVE per the backend. NOTE: the subscriptions GET returns
+ * inactive (cancelled) subs too — a cancelled sub stays in the payload with
+ * active:false — so cancellation must be asserted on this flag, NOT on absence.
+ * Returns false if the record isn't found at all (also "not active").
+ */
+function isActive(payload, { ssc = null, sfId = null } = {}) {
+  const rec = ssc ? findBySsc(payload, ssc) : findBySfId(payload, sfId);
+  return !!(rec && rec.active === true);
+}
+
+/** The YYYY-MM-DD date part of a sub's nextOrderDateTime (mid-day UTC → tz-stable). */
+function nextOrderDatePart(record) {
+  if (!record) return null;
+  const v = record.nextOrderDateTime || findField(record, /next.*order.*date/i);
+  return v ? String(v).slice(0, 10) : null;
 }
 
 /**
@@ -143,5 +161,7 @@ module.exports = {
   findBySsc,
   findBySfId,
   isPresent,
+  isActive,
+  nextOrderDatePart,
   logSubscriptionShape,
 };
