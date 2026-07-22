@@ -13,8 +13,10 @@ const { parseMoney } = require('../helpers/parse-money');
 //   - Order-level summary appears as <p> text nodes: "Total $X.XX",
 //     "Subtotal $X.XX", "Sales Tax $X.XX", "Shipping $X.XX". CAD orders include
 //     " CAD" suffix and a "(w/GST)" qualifier on Total which we strip before parsing.
-//   - "Re-Order All" appears as a <p>"Re-Order All" inside a <button>; present only
-//     on multi-product orders (2+ products).
+//   - "Re-Order All" appears as a <p>"Re-Order All" inside a <button>. NOTE: it is
+//     NOT exclusive to multi-product orders — observed on a single-product order
+//     too (real trigger unclear, possibly coupon usage) — so don't assume a
+//     product-count gate when locating/asserting on this button.
 //   - Pagination: button[aria-label="Click to go to next page"].
 class OrderHistoryPage extends BasePage {
   constructor(page, brand) {
@@ -163,6 +165,20 @@ class OrderHistoryPage extends BasePage {
       if (hasReorder > 0) return card;
     }
     return null;
+  }
+
+  // Returns Locators for every order card on the current page that has a
+  // Re-Order All button (may be empty). Used to pick a random candidate
+  // instead of always exercising the same (first) one.
+  async reorderableCards() {
+    const count = await this.orderCards.count();
+    const cards = [];
+    for (let i = 0; i < count; i++) {
+      const card = this.orderCards.nth(i);
+      const hasReorder = await card.locator('button').filter({ hasText: /re-?order all/i }).count();
+      if (hasReorder > 0) cards.push(card);
+    }
+    return cards;
   }
 }
 
