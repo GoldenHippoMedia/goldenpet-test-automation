@@ -66,6 +66,13 @@ class CartPage extends BasePage {
     // --- Toast Messages ---
     this.toastMessage = page.locator('[data-qa="toast-message"]');
 
+    // --- Upsell loading spinner (platform component, shared across brands) ---
+    // Full-screen z-9999 overlay (<text-loading-spinner> → aside.upsellSpinnerOverlay)
+    // that intercepts pointer events on the cart while it's up. If we click Remove /
+    // qty controls before it clears, the click is swallowed and Playwright retries
+    // until the element detaches → timeout. Wait it out before those clicks.
+    this.upsellSpinnerOverlay = page.locator('aside.upsellSpinnerOverlay');
+
     // --- Footer Links ---
     this.termsLink          = page.locator('text=Terms & Conditions').first();
     this.privacyPolicyLink  = page.locator('text=Privacy Policy').first();
@@ -124,7 +131,21 @@ class CartPage extends BasePage {
     await this.page.waitForTimeout(1500);
   }
 
+  /**
+   * Wait for the upsell loading spinner overlay to clear before interacting with the
+   * cart. The overlay (z-9999, full-screen) intercepts pointer events, so Remove / qty
+   * clicks are swallowed while it's up. Brand-agnostic: resolves immediately on
+   * pages/brands where it never renders (a non-existent element counts as "hidden").
+   */
+  async waitForUpsellSpinnerGone(timeout = 15000) {
+    await this.upsellSpinnerOverlay
+      .first()
+      .waitFor({ state: 'hidden', timeout })
+      .catch(() => {});
+  }
+
   async removeFirstProduct() {
+    await this.waitForUpsellSpinnerGone();
     await this.productDeleteLink.first().click();
     await this.page.waitForTimeout(1500);
   }
@@ -139,6 +160,7 @@ class CartPage extends BasePage {
     while (true) {
       const count = await this.productDeleteLink.count();
       if (count === 0) break;
+      await this.waitForUpsellSpinnerGone();
       await this.productDeleteLink.first().click();
       await this.page.waitForTimeout(2000);
     }
