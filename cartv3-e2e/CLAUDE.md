@@ -132,6 +132,7 @@ row here. (The soft logs also flip to a "may be fixed — tighten me" note in th
 | [CART-9082](https://goldenhippomedia.atlassian.net/browse/CART-9082) | `subscription-update-shipping-address.spec.js` | Subscription **Additional Address (`line2`) can be SET but not CLEARED** — emptying it drops the field from the PUT, backend keeps the old value. | Asserts line2 *sets* only; never restores it to empty. When fixed: assert clearing empties line2 (UI + backend). |
 | [CART-9120](https://goldenhippomedia.atlassian.net/browse/CART-9120) | `subscription-skip-next-order.spec.js` | **Skip modal previews the wrong skip-to date** — computes +60 days vs the backend's +2 calendar months, so it's off by a day for multi-month cadences. | Asserts date *advanced forward* + summary matches the backend; soft-logs the modal-preview mismatch. When fixed: restore strict `sameDisplayDate(summary, next)`. |
 | [CART-9124](https://goldenhippomedia.atlassian.net/browse/CART-9124) | `order-loggedin-list-reorder.spec.js` | **Re-Order All returns an EMPTY cart when the order contains 2× the exact same product** (identical line items); works for distinct products. Confirmed on prod (drmarty) 2026-07-20 — NOT a UAT seed-data quirk. | Spec auto-picks `firstReorderableCard()` → intermittently lands on such an order → `waitForCartLoaded` times out. Non-deterministic on the shared account (a pass doesn't clear the bug). When fixed: verify manually via a known 2×-identical order; optionally make card-selection deterministic. |
+| [BW-7357](https://goldenhippomedia.atlassian.net/browse/BW-7357) | `thank-you-page.spec.js` | **Tilly's Treasures product display-name mismatch** — Cart shows "Tilly's Treasure Beef Liver Treats", Order Confirmation shows "Dr. Marty Tilly's Treasures - 1 Bag". May be fixed on prod already but still reproduces on UAT (confirmed 2026-07-21). | `assertProductNamesMatch` is intentionally left strict to keep surfacing this — do NOT loosen it. When fixed on UAT: re-run with the Tilly's variant to confirm the row disappears. |
 
 ### B. Missing `data-qa` — ask the team to add (with current fallback)
 
@@ -152,15 +153,17 @@ the row here. (The team keeps adding `data-qa` — re-audit a page before trusti
 
 ### C. DevOps asks (infra — not test/app bugs)
 
-- **Cloudflare rate-limit allow-list for QA `@real-order` / add-card traffic.** Repeated real
-  orders (and add-card) trip a **velocity-based** CF rate-limit ("Too many requests" toast,
-  Submit/ADD CARD stuck disabled). This is separate from the bot-wall that `QA_UA_TOKEN`
-  already clears. **Ask:** add an exception on the *rate-limit* rule keyed on the
-  `DrMartyQA/<token>` UA or a secret header/cookie (NOT IP — QA IPs are dynamic), covering
-  `*/commerce-service/proxy/{cart,tax}/*`, `*/account-service/proxy/*`,
-  `*/payment-service/proxy/*`, and the order-submit endpoint. Full diagnosis in the **Known
-  Issues** note near the end of this file. Workaround today: space `@real-order` runs; submit
-  from `/cart` (sidesteps the `/checkout` challenge).
+- **[CART-9181](https://goldenhippomedia.atlassian.net/browse/CART-9181) — Cloudflare rate-limit
+  allow-list for QA `@real-order` / add-card traffic.** Repeated real orders (and add-card)
+  trip a **velocity-based** CF rate-limit ("Too many requests" toast, Submit/ADD CARD stuck
+  disabled). This is separate from the bot-wall that `QA_UA_TOKEN` already clears. **Ask:** add
+  an exception on the *rate-limit* rule keyed on the `DrMartyQA/<token>` UA or a secret
+  header/cookie (NOT IP — QA IPs are dynamic), covering `*/commerce-service/proxy/{cart,tax}/*`,
+  `*/account-service/proxy/*`, `*/payment-service/proxy/*`, and the order-submit endpoint. Full
+  diagnosis in the **Known Issues** note near the end of this file. Workaround today: space
+  `@real-order` runs; submit from `/cart` (sidesteps the `/checkout` challenge). Reproduced again
+  2026-07-21 (drmarty UAT) — `order-guest-checkout-cc`, `order-loggedin-cart-paypal`,
+  `order-loggedin-checkout-cc`, and `payment-add-card` all failed together in one dense batch run.
 - **[TODO / on hold — DECIDED NOT TO PURSUE, revisit only if needed] Turnstile + rate-limit on
   prod order/payment SUBMIT endpoints.** On **prod specifically**, the app-side Cloudflare
   **Turnstile** challenge (`challenges.cloudflare.com/cdn-cgi/challenge-platform`, seen as `401`
