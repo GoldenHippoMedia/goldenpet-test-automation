@@ -281,7 +281,10 @@ test.describe('Order - Thank You Page Confirmation Display', () => {
       }
 
       // Money math + Tax displayed
-      assertMoneyMath(summary, 'confirmation');
+      // Confirmation subtotal is displayed PRE-discount (app fix 2026-07-21) —
+      // subtract the displayed "Coupons & Discounts" amount when a coupon applied.
+      const discountAmount = couponApplied ? Math.abs(parseMoney(discountText) ?? 0) : 0;
+      assertMoneyMath(summary, 'confirmation', discountAmount);
       assertTaxApplied(summary, 'confirmation');
       expect(summary.tax, 'Taxes should be displayed on confirmation').not.toBeNull();
 

@@ -64,16 +64,21 @@ function assertProductNamesMatch(a, b, aLabel, bLabel) {
 }
 
 /**
- * Math sanity: total = subtotal + tax + shipping.
+ * Math sanity: total = subtotal - discount + tax + shipping.
  * Allows 1¢ tolerance to absorb floating-point rounding.
+ *
+ * `discount` defaults to 0 for pages where the displayed subtotal is already
+ * post-discount. On the order confirmation page, the app displays the
+ * PRE-discount subtotal above the "Coupons & Discounts" line (fix verified
+ * 2026-07-21), so callers there must pass the displayed discount amount.
  */
-function assertMoneyMath(snapshot, label = 'snapshot') {
+function assertMoneyMath(snapshot, label = 'snapshot', discount = 0) {
   const { subtotal, tax, shipping, total } = snapshot;
   if (subtotal == null || total == null) return;
-  const computedTotal = subtotal + (tax ?? 0) + (shipping ?? 0);
+  const computedTotal = subtotal - discount + (tax ?? 0) + (shipping ?? 0);
   expect(
     Math.abs(total - computedTotal) < 0.01,
-    `${label}: total ($${total}) should equal subtotal ($${subtotal}) + tax ($${tax ?? 0}) + shipping ($${shipping ?? 0}) = $${computedTotal.toFixed(2)}`
+    `${label}: total ($${total}) should equal subtotal ($${subtotal}) - discount ($${discount}) + tax ($${tax ?? 0}) + shipping ($${shipping ?? 0}) = $${computedTotal.toFixed(2)}`
   ).toBe(true);
 }
 
