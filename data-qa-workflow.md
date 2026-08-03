@@ -24,7 +24,7 @@ so consistency with the catalog takes priority over preserving ad-hoc prior valu
 `UAT` is shared staging — never work directly on it.
 
 ```bash
-cd /Users/scottlangdon/golden-pet/<brand-repo>
+cd <brand-repo>
 git status --porcelain          # confirm clean before switching
 git checkout UAT && git pull && git checkout -b <TICKET-ID>-data-qa-<product-line>
 ```
@@ -40,7 +40,7 @@ may get refused at Step 4 below even though the branch is legitimate. Flag this 
 ## Step 2 — Enable the plugin in the repo (one time per brand)
 
 ```bash
-cd /Users/scottlangdon/golden-pet/pet-ai-agents-config
+cd pet-ai-agents-config
 ./scripts/install-gpet-plugins.sh --dry-run
 ./scripts/install-gpet-plugins.sh --yes
 ```
@@ -63,7 +63,7 @@ the new commands — you must start a fresh session in the brand repo afterward.
 Verify it took:
 
 ```bash
-cd /Users/scottlangdon/golden-pet/<brand-repo>
+cd <brand-repo>
 cat .claude/settings.json          # look for gpet-global@gpb, gpet-prepurchase@gpb
 ```
 
