@@ -142,7 +142,29 @@ test.describe('Account - Order History list + Buy It Again + Re-Order All', () =
       }
     }
     test.skip(candidates.length === 0, 'No order with a Re-Order All button exists on the current test account — skipping (matches GI exit-pass behavior for accounts without re-orderable multi-product orders)');
-    const targetIndex = Math.floor(Math.random() * candidates.length);
+
+    // Which candidate to exercise. Random by DEFAULT (broad coverage across runs —
+    // different product counts, subscription vs standard, coupon vs not), but a random
+    // pick against a DATA-DEPENDENT app bug is otherwise unreproducible: a failing run
+    // and a passing run may simply have drawn different orders. So the chosen ORD- id
+    // is always logged below, and `REORDER_ORDER_ID` pins a specific order to reproduce
+    // a failure deterministically, e.g.:
+    //   REORDER_ORDER_ID=ORD-000875833 BRAND=badlands ENVIRONMENT=uat npx playwright test tests/order-loggedin-list-reorder.spec.js
+    let targetIndex = Math.floor(Math.random() * candidates.length);
+    const pinnedOrderId = process.env.REORDER_ORDER_ID;
+    if (pinnedOrderId) {
+      let pinnedIndex = -1;
+      for (let i = 0; i < candidates.length; i++) {
+        const txt = (await candidates[i].textContent().catch(() => '')) || '';
+        if (txt.includes(pinnedOrderId)) { pinnedIndex = i; break; }
+      }
+      expect(
+        pinnedIndex,
+        `REORDER_ORDER_ID=${pinnedOrderId} is not among the Re-Order All candidates on this page (it may have no Re-Order All button, or live on a later page)`
+      ).toBeGreaterThanOrEqual(0);
+      targetIndex = pinnedIndex;
+      console.log(`[order-history] Re-Order All — PINNED to ${pinnedOrderId} via REORDER_ORDER_ID`);
+    }
 
     // Clear the cart BEFORE clicking Re-Order All. The shared test account's cart
     // isn't guaranteed empty going in (a prior run elsewhere in the suite may have
@@ -170,40 +192,95 @@ test.describe('Account - Order History list + Buy It Again + Re-Order All', () =
 
     await targetCard.locator('button').filter({ hasText: /re-?order all/i }).first().click();
     await page.waitForURL(/\/cart/, { timeout: 15000 });
-    await cartPage.waitForCartLoaded();
 
-    const cartRowCount = await cartPage.productName.count();
+    // Re-Order All must actually POPULATE the cart. Poll for at least one row instead
+    // of waitForCartLoaded()'s opaque 30s locator timeout, so a silent no-op reports as
+    // "added no products" (an app-side failure) rather than a generic timeout.
+    // Observed on Badlands UAT 2026-08-04: ORD-000875833 (a 6-Units Subscription plus a
+    // $0 promo line) navigates to /cart showing "Your cart is empty!" with a 0 badge —
+    // nothing is added. The equivalent DMP subscription order re-orders correctly, so
+    // the $0 promo line is the likely trigger. Left failing on purpose.
+    await expect
+      .poll(async () => await cartPage.productRows.count(), {
+        timeout: 20000,
+        message: `Re-Order All on ${reorderSnap.orderId} navigated to /cart but added NO products (cart is empty). Expected ${reorderSnap.products.length}: ${reorderSnap.products.map((p) => `${p.name} (qty ${p.quantity}, $${p.linePrice})`).join(' | ')}`,
+      })
+      .toBeGreaterThan(0);
+
+    const cartRowCount = await cartPage.productRows.count();
     expect(cartRowCount, 'cart row count must equal order product count').toBe(reorderSnap.products.length);
 
+    // Read every field WITHIN its own <cart-line> row. Never index the page-wide
+    // locators positionally here: a SUBSCRIPTION row renders no [data-qa="quantity"]
+    // stepper, so that locator has fewer elements than there are rows and .nth(i)
+    // would silently pair another row's quantity with this row's name/price.
+    // Quantity comes from the TEXT form [data-qa="product-quantity"], which IS present
+    // on every row (subscriptions included); the stepper is a non-subscription extra.
+    const safeText = async (loc) => {
+      try { return (await loc.textContent({ timeout: 2000 })).trim(); }
+      catch { return null; }
+    };
     const cartRows = [];
     for (let i = 0; i < cartRowCount; i++) {
-      const name = (await cartPage.productName.nth(i).textContent()).trim();
-      const priceText = (await cartPage.productPrice.nth(i).textContent()).trim();
-      const qtyText = (await cartPage.quantityValue.nth(i).textContent()).trim();
+      const row = cartPage.productRows.nth(i);
+      const name = await safeText(row.locator('[data-qa="product-name"]').first());
+      const priceText = await safeText(row.locator('[data-qa="product-price"]').first());
+      const qtyText = (await safeText(row.locator('[data-qa="product-quantity"]').first()))
+        ?? (await safeText(row.locator('[data-qa="quantity"]').first()));
+      const qtyMatch = qtyText && qtyText.match(/(\d+)/);
+      // Structural subscription signal: a subscription line has no quantity STEPPER
+      // (you can't increment a subscription the way you can a standard line item).
+      const hasStepper = (await row.locator('[data-qa="quantity"]').count()) > 0;
       cartRows.push({
         name,
-        price: parseFloat(priceText.replace(/[^\d.]/g, '')),
-        quantity: parseInt(qtyText, 10),
+        price: priceText ? parseFloat(priceText.replace(/[^\d.]/g, '')) : null,
+        quantity: qtyMatch ? parseInt(qtyMatch[1], 10) : null,
+        isSubscription: !hasStepper,
       });
     }
     console.log('[order-history] Cart rows after Re-Order All:', cartRows);
 
-    // Match each order product to a cart row by loose name similarity, then assert qty + price.
+    // Match each order product to a cart row, then assert qty + price.
+    // GOTCHA: the cart renders the SAME display name for a product's SUBSCRIPTION and
+    // STANDARD variants (order history distinguishes them — "… - 1 Bag Subscription"
+    // vs "… - 1 Bag" — the cart does not). So name alone can pair the wrong rows.
+    // Prefer a row matching on name AND price; fall back to name-only.
+    const priceMatches = (cr, op) =>
+      cr.price != null
+      && (Math.abs(cr.price - op.linePrice) <= 0.01
+        || (cr.quantity != null && Math.abs(+(cr.price * cr.quantity).toFixed(2) - op.linePrice) <= 0.01));
     const remaining = [...cartRows];
     for (const op of reorderSnap.products) {
-      const idx = remaining.findIndex((cr) => sharesSignificantWords(cr.name, op.name, 2));
+      let idx = remaining.findIndex((cr) => sharesSignificantWords(cr.name, op.name, 2) && priceMatches(cr, op));
+      if (idx === -1) idx = remaining.findIndex((cr) => sharesSignificantWords(cr.name, op.name, 2));
       expect(
         idx,
-        `no cart row matched order product "${op.name}". Remaining cart rows: ${remaining.map((r) => r.name).join(' | ')}`
+        `no cart row matched order product "${op.name}". Remaining cart rows: ${remaining.map((r) => `${r.name} ($${r.price} × ${r.quantity})`).join(' | ')}`
       ).toBeGreaterThanOrEqual(0);
       const cr = remaining.splice(idx, 1)[0];
 
-      expect(cr.quantity, `quantity mismatch for "${op.name}" (matched cart row "${cr.name}")`).toBe(op.quantity);
+      // Every row exposes a quantity via [data-qa="product-quantity"], so a null here
+      // is a real signal (DOM drift / brand difference) — fail loudly, don't skip.
+      expect(cr.quantity, `no quantity found for cart row "${cr.name}" — expected [data-qa="product-quantity"]`).not.toBeNull();
+
+      // Quantity semantics differ for subscriptions: /order-history counts UNITS
+      // (e.g. qty 2 bags) while the cart counts SUBSCRIPTION LINES (qty 1, priced at
+      // the full per-delivery amount). Verified on UAT: an order line of qty 2 @
+      // $57.90 re-orders into a cart row of qty 1 @ $57.90 — the MONEY matches, so the
+      // right amount of product was added; only the unit is expressed differently.
+      // Asserting unit-equality there would be wrong, so assert it only for standard
+      // rows; the line-total check below is the real guarantee for every row.
+      if (cr.isSubscription) {
+        console.log(`[order-history] "${cr.name}" is a subscription row (no qty stepper) — cart qty ${cr.quantity} (subscription lines) vs order qty ${op.quantity} (units); asserting line total instead`);
+      } else {
+        expect(cr.quantity, `quantity mismatch for "${op.name}" (matched cart row "${cr.name}")`).toBe(op.quantity);
+      }
 
       // /order-history price is LINE TOTAL. Cart may display unit OR line.
       // Accept either: cart price === line total, OR cart × qty === line total (±$0.01).
-      const lineTotalGuess = +(cr.price * cr.quantity).toFixed(2);
+      expect(cr.price, `no price found for cart row "${cr.name}"`).not.toBeNull();
       const okAsLineTotal = Math.abs(cr.price - op.linePrice) <= 0.01;
+      const lineTotalGuess = +(cr.price * cr.quantity).toFixed(2);
       const okAsUnitPrice = Math.abs(lineTotalGuess - op.linePrice) <= 0.01;
       expect(
         okAsLineTotal || okAsUnitPrice,

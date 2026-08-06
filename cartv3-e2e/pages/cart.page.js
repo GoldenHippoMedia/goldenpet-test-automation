@@ -9,6 +9,12 @@ class CartPage extends BasePage {
     this.cartHeader = page.locator('h1:has-text("Cart")');
 
     // --- Product List ---
+    // One <cart-line> per line item (audited 2026-08-04: each contains exactly one
+    // product-name + product-price + product-delete-link). Scope per-row reads to
+    // this instead of positionally indexing the page-wide locators below — the
+    // per-field counts DIFFER across rows (a subscription row renders no
+    // [data-qa="quantity"] stepper), so global .nth(i) pairs the wrong values together.
+    this.productRows       = page.locator('cart-line');
     this.productName       = page.locator('[data-qa="product-name"]');
     this.productPrice      = page.locator('[data-qa="product-price"]');
     this.productQuantity   = page.locator('[data-qa="product-quantity"]');

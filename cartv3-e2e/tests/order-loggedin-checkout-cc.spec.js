@@ -71,35 +71,55 @@ test.describe('Order - Logged-In Checkout with Saved Credit Card', () => {
       await loginPage.goto();
       await loginPage.login();
 
-      // 2. Add product to cart — randomize between 2 variants to dodge duplicate-order rejections
+      // 2. Start from an EMPTY cart. This is a shared logged-in test account and the
+      //    cart persists server-side, so a prior run (or a person) can leave items
+      //    behind. That breaks the cart -> confirmation assertions below, because
+      //    cartPage.getOrderSummary() reports only the FIRST row's product/quantity
+      //    while `subtotal` covers the whole cart — so a leftover row makes the test
+      //    compare two different products. Log whatever was already there first, so a
+      //    stale cart stays visible in the output instead of being silently swallowed.
+      await cartPage.goto();
+      const preExistingRows = await cartPage.productName.count().catch(() => 0);
+      if (preExistingRows > 0) {
+        const names = [];
+        for (let i = 0; i < preExistingRows; i++) {
+          names.push((await cartPage.productName.nth(i).textContent().catch(() => '')).trim());
+        }
+        console.log(`[cart] WARNING: cart was NOT empty at test start — ${preExistingRows} leftover row(s): ${names.join(' | ')} (clearing before adding the test product)`);
+        await cartPage.clearCart();
+      }
+
+      // 3. Add product to cart — randomize between 2 variants to dodge duplicate-order rejections
       const productKey = Math.random() < 0.5 ? 'loggedin_std_1' : 'loggedin_std_2';
       await cartPage.addProductByKey(productKey);
 
-      // 3. Snapshot cart for cross-page assertions
+      // 4. Snapshot cart for cross-page assertions
       const cartSnap = await cartPage.getOrderSummary();
+      const cartRowCount = await cartPage.productName.count().catch(() => 0);
+      console.log(`[cart] rows=${cartRowCount} firstProduct="${cartSnap.productName}" qty=${cartSnap.quantity} subtotal=$${cartSnap.subtotal}`);
       expect(cartSnap.productName, 'cart should have a product name').toBeTruthy();
       expect(cartSnap.quantity, 'cart should have a quantity').toBeGreaterThan(0);
       expect(cartSnap.subtotal, 'cart should have a subtotal').toBeGreaterThan(0);
 
-      // 4. Navigate from cart to /checkout via the "change" shipping link.
+      // 5. Navigate from cart to /checkout via the "change" shipping link.
       //    This is the same path used by cart-paypal-button.test.js and lands on /checkout
       //    with the user's saved address + default CC pre-selected.
       await cartPage.changeShippingLink.click();
       await page.waitForURL(/\/checkout/, { timeout: 15000, waitUntil: 'commit' });
 
-      // 5. Wait for the checkout page to be interactive. For a logged-in user with a
+      // 6. Wait for the checkout page to be interactive. For a logged-in user with a
       //    saved card, Submit Order enables on its own (confirmed manually on prod —
       //    no "Or pay with credit card" toggle needed).
       const submitOrderBtn = page.locator('[data-qa="submit-order-btn"]');
       await submitOrderBtn.waitFor({ state: 'visible', timeout: 30000 });
 
-      // 6. Snapshot checkout summary (subtotal/tax/shipping/total)
+      // 7. Snapshot checkout summary (subtotal/tax/shipping/total)
       const checkoutSnap = await checkoutPage.getOrderSummary();
 
       // Cart → checkout: subtotal must agree
       assertSnapshotsAgree(cartSnap, checkoutSnap, 'cart', 'checkout', ['subtotal']);
 
-      // 7. Submit Order on /checkout. This path can be gated by a Cloudflare edge
+      // 8. Submit Order on /checkout. This path can be gated by a Cloudflare edge
       //    rate-limit/challenge that surfaces a "Too many requests" toast and leaves
       //    Submit Order disabled (see CLAUDE.md — DevOps TODO). That degraded,
       //    rate-limited state is also what made automation see a PayPal-first-looking,
@@ -134,11 +154,11 @@ test.describe('Order - Logged-In Checkout with Saved Credit Card', () => {
       await expect(submitOrderBtn, 'Submit Order should be enabled on /checkout').toBeEnabled();
       await submitOrderBtn.click();
 
-      // 8. Wait for /order-confirmation, declining upsells along the way
+      // 9. Wait for /order-confirmation, declining upsells along the way
       await checkoutPage.waitForOrderConfirmation();
       await confirmationPage.waitForConfirmationLoaded();
 
-      // 9. Snapshot confirmation
+      // 10. Snapshot confirmation
       const confirmSnap   = await confirmationPage.getOrderSummary();
       const customer      = await confirmationPage.getCustomerInfo();
       const shippingAddr  = await confirmationPage.getShippingAddress();
@@ -160,7 +180,7 @@ test.describe('Order - Logged-In Checkout with Saved Credit Card', () => {
         { type: 'Product Variant', description: `${productKey} (${brand.testProducts[productKey]})` },
       );
 
-      // 10. Validations
+      // 11. Validations
 
       // Order ID format
       assertOrderIdFormat(orderId);

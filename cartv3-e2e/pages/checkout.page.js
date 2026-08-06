@@ -243,18 +243,35 @@ class CheckoutPage extends BasePage {
    */
   async waitForOrderConfirmation({ timeout = 90000 } = {}) {
     const start = Date.now();
+    // Diagnostics: record every funnel page we land on and every offer we decline,
+    // so an extra line item appearing on the confirmation can be traced to an
+    // accepted/declined post-purchase offer (vs. something already in the cart).
+    const path = () => this.page.url().replace(/^https?:\/\/[^/]+/, '').split('?')[0];
+    const visited = [];
+    let declined = 0;
     while (Date.now() - start < timeout) {
-      if (this.page.url().includes('/order-confirmation')) return;
+      const here = path();
+      if (visited[visited.length - 1] !== here) {
+        visited.push(here);
+        console.log(`[funnel] at ${here}`);
+      }
+
+      if (this.page.url().includes('/order-confirmation')) {
+        console.log(`[funnel] reached /order-confirmation — declined ${declined} offer(s); path: ${visited.join(' -> ')}`);
+        return;
+      }
 
       const notInterested = this.page.locator("text=I'm not interested").first();
       const visible = await notInterested.isVisible().catch(() => false);
       if (visible) {
+        declined += 1;
         await notInterested.click().catch(() => {});
         await this.page.waitForTimeout(2000);
       } else {
         await this.page.waitForTimeout(1000);
       }
     }
+    console.log(`[funnel] TIMEOUT — declined ${declined} offer(s); path: ${visited.join(' -> ')}`);
     throw new Error(
       `Did not reach /order-confirmation within ${timeout}ms (last URL: ${this.page.url()})`
     );
