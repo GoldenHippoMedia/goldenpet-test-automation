@@ -39,15 +39,42 @@ console.log(`\nrun-brands: brands=[${brands.join(', ')}] env=${environment} args
 const results = [];
 for (const brand of brands) {
   console.log(`\n─── ${brand} (${environment}) ───`);
-  const res = spawnSync('npx', ['playwright', 'test', ...playwrightArgs], {
+
+  // Per-brand artifact dirs. Without these, brand 2 overwrites brand 1's HTML report AND
+  // its test-results/ (screenshots + error-context.md), so a multi-brand run left you
+  // unable to debug any brand but the last.
+  const htmlDir = `playwright-report/${brand}`;
+  const outDir = `test-results/${brand}`;
+  const args = ['playwright', 'test', ...playwrightArgs];
+  if (!playwrightArgs.some((a) => a.startsWith('--output'))) args.push(`--output=${outDir}`);
+
+  const res = spawnSync('npx', args, {
     stdio: 'inherit',
-    env: { ...process.env, BRAND: brand, ENVIRONMENT: environment },
+    env: {
+      ...process.env,
+      BRAND: brand,
+      ENVIRONMENT: environment,
+      // The html reporter defaults to open:'on-failure', which starts a report server and
+      // BLOCKS until Ctrl+C. Under spawnSync that hangs this wrapper on the first brand
+      // that has a failure, and the Ctrl+C needed to escape kills the whole run — so the
+      // remaining brands silently never execute. (Bit us on drmarty→badlands, UAT and prod,
+      // 2026-08-19.) Suppress it here only; single-brand `npx playwright test` runs keep
+      // auto-opening the report as before. Both var names set — modern + legacy.
+      PLAYWRIGHT_HTML_OPEN: 'never',
+      PW_TEST_HTML_REPORT_OPEN: 'never',
+      PLAYWRIGHT_HTML_OUTPUT_DIR: htmlDir,
+      PLAYWRIGHT_HTML_REPORT: htmlDir,
+    },
   });
-  results.push({ brand, code: res.status == null ? 1 : res.status });
+  results.push({ brand, code: res.status == null ? 1 : res.status, htmlDir });
 }
 
 console.log('\n═══ run-brands summary ═══');
 for (const r of results) {
   console.log(`  ${r.code === 0 ? '✓ PASS' : '✗ FAIL'}  ${r.brand} (${environment})`);
+}
+console.log('\n  reports:');
+for (const r of results) {
+  console.log(`    ${r.brand}: npx playwright show-report ${r.htmlDir}`);
 }
 process.exit(results.every((r) => r.code === 0) ? 0 : 1);

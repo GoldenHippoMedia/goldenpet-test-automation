@@ -21,6 +21,29 @@ if (!envUrls) {
   throw new Error(`Environment "${env}" not found for brand "${brand}". Available: ${Object.keys(brandConfig.urls).join(', ')}`);
 }
 
+/**
+ * Resolve a brand APP-BEHAVIOUR flag that may vary by environment.
+ *
+ * Accepts three shapes in site-config.json:
+ *   undefined              -> `fallback` (new brands inherit the finished behaviour)
+ *   true / false           -> same in every env
+ *   { uat: true, prod: false } -> per-env, for a release mid-rollout
+ *
+ * Needed because releases hit UAT before prod, so the SAME brand can legitimately behave
+ * differently per env for a while. A per-env value is TEMPORARY by nature — collapse it
+ * back to a plain boolean once the rollout finishes.
+ */
+function resolvePerEnvFlag(value, environment, fallback) {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'object') {
+    return value[environment] === undefined ? fallback : Boolean(value[environment]);
+  }
+  throw new Error(
+    `site-config flag for brand "${brand}" must be a boolean or an object keyed by env, got ${typeof value}`
+  );
+}
+
 // Load product/test data from CSV (same format as the Ghost Inspector data source)
 // Columns: domain, subdomain, cart_domain, loggedin_std_1, loggedin_std_2, ...
 const productsCsvPath = path.join(__dirname, '..', 'data', 'products', `${brand}-${env}.csv`);
@@ -80,7 +103,9 @@ const test = base.extend({
       name: brand,
       displayName: brandConfig.displayName,
       logoAltText: brandConfig.logoAltText,
-      storeLocatorUrl: brandConfig.storeLocatorUrl,
+      // Regex SOURCE string, not a literal URL — the header Store Locator destination
+      // differs per brand and has changed over time. See site-config's _comment.
+      storeLocatorUrlPattern: brandConfig.storeLocatorUrlPattern,
       // First-party domain (no scheme), e.g. 'drmartypets.com'. Used by tests that
       // filter network traffic to first-party requests. Brand-specific.
       primaryDomain: brandConfig.primaryDomain,
@@ -88,6 +113,14 @@ const test = base.extend({
       baseUrl: envUrls.base,
       paths: envUrls,
       content: brandConfig.content || {},
+      // --- Brand APP-BEHAVIOUR flags (resolved per ENV, not just per brand) ---
+      // A release lands on UAT before prod, so during a rollout the SAME brand behaves
+      // differently per env. Each flag accepts either a plain boolean (same everywhere) or
+      // an object keyed by env: { uat: true, prod: false }. Default TRUE when unset — new
+      // brands inherit the finished behaviour rather than a legacy exception.
+      // BRP proved the need: City is required on badlands UAT but not yet badlands prod
+      // (2026-08-19). A brand-only flag got this wrong in one env or the other.
+      shippingCityRequired: resolvePerEnvFlag(brandConfig.shippingCityRequired, env, true),
       testAddress: brandConfig.testAddress || {},
       testCard: siteConfig.testCards?.[env] || {},
       // Distinct card used only by the Manage Payments "Add Credit Card" test.

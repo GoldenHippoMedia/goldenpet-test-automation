@@ -7,6 +7,25 @@ test.describe(`Header Navigation - ${process.env.BRAND || 'drmarty'}`, () => {
   test.slow();
 
   test('all header and account dropdown links navigate correctly', async ({ page, brand }) => {
+    // ⚠️ PARKED — KNOWN BROKEN, FIX IN PROGRESS (2026-08-19).
+    // test.fixme() rather than test.skip(): this is "broken and being worked on", NOT
+    // "intentionally not applicable" (which is what the badlands skip below means). Keeping
+    // the two reasons distinct matters — a fixme is a debt marker that should disappear.
+    //
+    // Why it's parked: the header is the least portable surface in the suite and there is no
+    // single selector that holds. The nav hrefs are RELATIVE on CMS pages but ABSOLUTE on
+    // Angular app pages, so `a.header__nav__link[href="/products"]` matches from the homepage
+    // and never matches from /my-account or /cart. On drmarty prod this spec has failed at
+    // TWO DIFFERENT links on consecutive runs (Store Locator, then Shop) purely from where it
+    // happened to be standing. Giving it more time was the wrong instinct — it burned the
+    // full 270s timeout waiting for a locator that could never resolve.
+    //
+    // Do NOT "fix" this by loosening the URL assertions to /products|shop-style regexes; that
+    // hides real misrouting. The redesign + the cross-brand strategy decision it depends on
+    // are tracked in CLAUDE.md → Backlog → "Brand-portable header nav testing" and
+    // "Cross-brand test strategy". Un-fixme this once that decision lands.
+    test.fixme(true, 'Header nav selectors are not page- or brand-portable — redesign pending (CLAUDE.md Backlog).');
+
     // Badlands' header is authored in Builder.io, not the coded Angular header DMP uses:
     // the nav items (Shop/Subscribe/Reviews/Contact/Store Locator) have NO href and NO
     // data-qa, only volatile `builder-<hash>` classes (regenerated on every Builder
@@ -49,8 +68,13 @@ test.describe(`Header Navigation - ${process.env.BRAND || 'drmarty'}`, () => {
     await page.waitForLoadState('domcontentloaded');
     await expect(page).toHaveURL(/contact/);
 
-    // --- Store Locator (external link — assert href only, no navigation) ---
-    await expect(headerPage.storeLocatorLink).toHaveAttribute('href', brand.storeLocatorUrl);
+    // --- Store Locator (assert href only, no navigation) ---
+    // The destination varies per brand AND has moved over time (DMP prod: the
+    // store.drmartypets.com subdomain -> a first-party /store-locator path), so match a
+    // brand-configured pattern that accepts either shape rather than one literal URL.
+    await expect(headerPage.storeLocatorLink, 'Store Locator nav link should be present').toBeVisible();
+    await expect(headerPage.storeLocatorLink)
+      .toHaveAttribute('href', new RegExp(brand.storeLocatorUrlPattern));
 
     // --- Account Dropdown: My Account Main ---
     await headerPage.openAccountDropdown();

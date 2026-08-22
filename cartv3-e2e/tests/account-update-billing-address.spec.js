@@ -100,8 +100,8 @@ test.describe('Profile & Settings - Different Billing Address', () => {
       // --- required-field validation on the billing sub-form: each REQUIRED field,
       //     cleared individually, must show the inline error AND disable Save.
       //     Billing required = Street + City + Zip/Postal (audit-confirmed 2026-06-05).
-      //     NOTE: this differs from SHIPPING, where City is OPTIONAL — the reused
-      //     <address-form> validates City differently per instance. Additional /
+      //     Shipping matched this as of 2026-08-19 (City went optional -> required there
+      //     too), so both address sub-forms now validate identically. Additional /
       //     Country / State are optional on billing. ---
       await test.step('required-field validation (billing: Street + City + Zip/Postal required; Additional optional)', async () => {
         const requiredFields = [

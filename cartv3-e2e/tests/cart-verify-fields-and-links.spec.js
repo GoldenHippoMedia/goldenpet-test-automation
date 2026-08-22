@@ -26,6 +26,13 @@ test.describe('Cart - Verify Fields and Links (Logged In)', () => {
     // Add a product to the cart
     await cartPage.addProductByKey('loggedin_std_2');
 
+    // Every assertion below targets a LOGGED-IN-only element, so confirm the cart actually
+    // rendered authenticated first. On badlands prod (2026-08-19) it came back in the
+    // logged-out shell — CREATE ACCOUNT / LOGIN in the header, a "LOG IN" button in the
+    // body, and standard rather than member pricing — which made [data-qa="shipping-street"]
+    // "not found" and pointed at the selector instead of the real cause.
+    await cartPage.waitForLoggedInCart();
+
     // Verify shipping address on cart matches the saved address. Compare on street
     // LINE 1 only — some brands' cart summary (e.g. Badlands) render line 1 without the
     // line-2 / suite portion, while getStreetAddress() returns the full street string.
@@ -44,6 +51,7 @@ test.describe('Cart - Verify Fields and Links (Logged In)', () => {
 
     // Go back to cart
     await cartPage.addProductByKey('loggedin_std_2');
+    await cartPage.waitForLoggedInCart();
 
     // Click "Checkout with new card" link (no data-qa yet) — navigates to checkout
     await cartPage.checkoutWithNewCardLink.click();

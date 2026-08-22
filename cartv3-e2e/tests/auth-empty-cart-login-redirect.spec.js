@@ -23,10 +23,17 @@ test.describe('Auth - Empty Cart Login Redirect', () => {
 
     // Arriving via the SPA header link, the Angular login form can still be hydrating/
     // re-mounting when we start typing (which wipes the entered values → submit stays
-    // disabled). loginPage.goto() avoids this by stabilizing first; here we replicate that
-    // by settling the page (dismiss any popup + wait for network idle) before filling.
+    // disabled). That is now handled where it belongs: loginPage.fillCredentials() (called
+    // by loginAndWait below) verifies the typed values stuck and refills if they didn't.
+    //
+    // Deliberately NO waitForLoadState('networkidle') here. It can NEVER settle on these
+    // pages — the live-chat widget holds connections open — so it always burned its full
+    // 30s timeout. Stacked on the popup-dismiss sleeps and two UAT page loads, that left
+    // too little of the 90s budget for the login itself and this spec timed out with the
+    // form untouched (drmarty UAT 2026-08-19). Don't reintroduce it; if this spec needs
+    // stabilising again, add a CONDITION (wait for a specific element/response), not a
+    // blanket network wait.
     await headerPage.dismissPopupIfPresent();
-    await page.waitForLoadState('networkidle').catch(() => {});
 
     // Submit credentials and wait for any redirect away from /login
     await loginPage.loginAndWait(null, null, url => !url.toString().includes('/login'));

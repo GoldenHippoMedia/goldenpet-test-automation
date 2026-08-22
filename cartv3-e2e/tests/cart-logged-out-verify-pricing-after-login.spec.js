@@ -25,23 +25,28 @@ test.describe('Cart - Member Pricing After Login', () => {
 
     expect(stdItemTotal).toBeGreaterThan(0);
 
+    console.log('[member-pricing] standard:', { stdItemTotal, stdSubtotal, stdTotal });
+
     // Click Login button from the cart page
     await cartPage.loginButton.click();
     await page.waitForLoadState('domcontentloaded');
     await expect(page).toHaveURL(/login/);
 
-    // Fill credentials and submit — wait for URL to leave /login
-    await loginPage.emailInput.waitFor({ state: 'visible' });
-    await loginPage.emailInput.fill(loginPage.brand.email);
-    await loginPage.emailInput.press('Tab');
-    await loginPage.passwordInput.fill(loginPage.brand.password);
-    await loginPage.passwordInput.press('Tab');
-    await loginPage.submitButton.click();
+    // Fill credentials and submit — wait for URL to leave /login. Use loginAndWait rather
+    // than fillCredentials + click: only loginAndWait retries fill→enable→click→navigate as
+    // one unit, which is what survives the form re-mounting mid-click (see LoginPage).
+    await loginPage.loginAndWait(null, null, url => !url.toString().includes('/login'));
 
-    // Wait for redirect away from login page and cart to load with member pricing
-    await page.waitForURL(url => !url.toString().includes('/login'), { timeout: 15000 });
-    await cartPage.waitForCartLoaded();
+    // Re-request /cart with the auth cookie. Logging in from the cart returns us to a
+    // cart the SPA still has rendered at STANDARD pricing, and waitForCartLoaded() only
+    // waits for a product name to be visible — which the stale logged-out render already
+    // satisfies. Snapshotting here read the standard prices a second time and compared
+    // them to themselves (drmarty prod 2026-08-19: 59.95 vs 59.95, a false failure while
+    // member pricing was applying correctly in the browser).
+    await page.reload({ waitUntil: 'commit' });
     await cartPage.dismissPopupIfPresent();
+    await cartPage.waitForCartLoaded();
+    await cartPage.waitForLoggedInCart();
 
     // Verify only 1 product in cart (guard against parallel test interference)
     const productCount = await cartPage.productName.count();
@@ -53,10 +58,22 @@ test.describe('Cart - Member Pricing After Login', () => {
     // Verify item is still visible
     await expect(cartPage.productPrice.first()).toBeVisible();
 
+    // Now wait for member pricing to actually be APPLIED rather than assuming it already
+    // is. Polling the item price is the load-bearing assertion of this spec: if it never
+    // drops below the standard price, member pricing genuinely isn't applying.
+    await expect
+      .poll(() => cartPage.getItemTotalPrice(), {
+        message: `item price never dropped below the standard $${stdItemTotal} after login — member pricing did not apply`,
+        timeout: 30000,
+        intervals: [500, 1000, 2000],
+      })
+      .toBeLessThan(stdItemTotal);
+
     // Capture member (logged-in) prices
     const memberItemTotal = await cartPage.getItemTotalPrice();
     const memberSubtotal = await cartPage.getSubtotalPrice();
     const memberTotal = await cartPage.getTotalPrice();
+    console.log('[member-pricing] member:', { memberItemTotal, memberSubtotal, memberTotal });
 
     // Member pricing should be less than standard pricing
     expect(stdItemTotal).toBeGreaterThan(memberItemTotal);

@@ -22,6 +22,11 @@ const { AccountDetailsPage } = require('../pages/account-details.page');
 
 test.describe('Checkout-V2 - Logged-In Customer Data Pre-Populates', () => {
   test('customer info and shipping address pre-populate from the account record', async ({ page, brand }) => {
+    // login -> account fetch -> add product -> checkout -> afterEach cart clear is a long
+    // chain that shares ONE timeout budget with the afterEach hook. On prod it overran 90s
+    // and failed in afterEach with the assertions already green (2026-08-19).
+    test.slow();
+
     const loginPage = new LoginPage(page, brand);
     const cartPage = new CartPage(page, brand);
     const checkoutPage = new CheckoutPage(page, brand);

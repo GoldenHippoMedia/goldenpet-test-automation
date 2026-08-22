@@ -17,7 +17,14 @@ class HeaderPage extends BasePage {
     this.reviewsLink       = page.locator('a.header__nav__link[href="/reviews"]:visible');
     this.faqLink           = page.locator('a.header__nav__link[href="/faq-bridge"]:visible');
     this.contactLink       = page.locator('a.header__nav__link[href="/contact"]:visible');
-    this.storeLocatorLink  = page.locator(`a.header__nav__link[href="${brand.storeLocatorUrl}"]:visible`);
+    // Located by TEXT, not by href. The old locator selected on `href="<expected>"` and
+    // header.spec.js then asserted that same href — a tautology that could only pass or
+    // report "element(s) not found". So when DMP prod moved Store Locator off the
+    // store.<domain> subdomain onto a first-party /store-locator path, it surfaced as an
+    // href MISMATCH on a link it had in fact failed to find (2026-08-19). Find the link by
+    // identity; let the spec assert the destination against brand.storeLocatorUrlPattern.
+    // (`:has-text()` is case-insensitive, so it matches "STORE LOCATOR" too.)
+    this.storeLocatorLink  = page.locator('a.header__nav__link:has-text("Store Locator"):visible');
 
     // --- Logged-out / Logged-in state indicators ---
     // Some brands' header link uses a trailing slash (Badlands: /login/), others don't

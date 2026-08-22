@@ -95,15 +95,56 @@ class CartPage extends BasePage {
   }
 
   /**
+   * Navigate to a `/cart?product1=<id>` add-to-cart deep link.
+   *
+   * On prod this navigation frequently rejects with `net::ERR_ABORTED`. An abort has TWO
+   * possible meanings and they need opposite handling:
+   *   a) the app consumed the ?product1= query and client-side-redirected to a bare /cart
+   *      before the original navigation settled — harmless, we're on the cart;
+   *   b) the navigation was cancelled outright and we are STILL ON THE PREVIOUS PAGE.
+   *
+   * v1 of this helper assumed (a) and swallowed every abort. When (b) happened mid-spec
+   * the page stayed on /checkout, and because /checkout ALSO renders
+   * [data-qa="product-name"], waitForCartLoaded() returned a false green — the spec then
+   * burned its full 90s waiting for a cart-only button on the checkout page
+   * (drmarty prod 2026-08-19: cart-shipping-threshold + cart-verify-fields-and-links).
+   *
+   * So: tolerate the abort, but VERIFY we landed, retry the navigation if we didn't, and
+   * hard-gate on the URL before any element wait. cartUrl() always builds a `/cart?...`
+   * path for every brand, so the /cart check is brand-safe.
+   */
+  async _gotoAddToCart(url, { attempts = 2 } = {}) {
+    const onCart = () => /\/cart(\?|\/|$)/.test(this.page.url());
+
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      let aborted = false;
+      await this.page.goto(url, { waitUntil: 'commit' }).catch((e) => {
+        if (!/ERR_ABORTED/i.test(e.message || '')) throw e;
+        aborted = true;
+      });
+
+      if (!aborted || onCart()) break;
+
+      console.log(
+        `[cart] add-to-cart nav aborted and left us on ${this.page.url()} ` +
+        `(attempt ${attempt}/${attempts}) — re-navigating: ${url}`
+      );
+      await this.page.waitForTimeout(1000);
+    }
+
+    // Hard gate: never run element waits until we're demonstrably on the cart, or a
+    // wrong-page state turns into a confusing timeout on a missing cart control.
+    await this.page.waitForURL(/\/cart(\?|\/|$)/, { timeout: 20000 });
+    await this.dismissPopupIfPresent();
+    await this.waitForCartLoaded();
+  }
+
+  /**
    * Add a product to cart using a raw variant ID string.
    * Usage: await cartPage.addProductToCart('a0N3w000016gxzeEAA');
    */
   async addProductToCart(variantId) {
-    await this.page.goto(`${this.brand.baseUrl}/cart?product1=${variantId}`, {
-      waitUntil: 'domcontentloaded',
-    });
-    await this.dismissPopupIfPresent();
-    await this.waitForCartLoaded();
+    await this._gotoAddToCart(`${this.brand.baseUrl}/cart?product1=${variantId}`);
   }
 
   /**
@@ -112,18 +153,62 @@ class CartPage extends BasePage {
    * Usage: await cartPage.addProductByKey('loggedin_std_2');
    */
   async addProductByKey(productKey) {
-    const url = this.brand.cartUrl(productKey);
-    await this.page.goto(url, { waitUntil: 'domcontentloaded' });
-    await this.dismissPopupIfPresent();
-    await this.waitForCartLoaded();
+    await this._gotoAddToCart(this.brand.cartUrl(productKey));
   }
 
   /**
    * Wait for the cart's async product loading to finish.
    * The Angular app shows "Loading your cart..." then renders products.
+   *
+   * NOT page-discriminating: /checkout renders [data-qa="product-name"] too, so this
+   * resolves happily on the checkout page. Callers that navigated must confirm the URL
+   * separately (see _gotoAddToCart) rather than treating this as "we're on the cart".
    */
   async waitForCartLoaded() {
     await this.productName.first().waitFor({ state: 'visible', timeout: 30000 });
+  }
+
+  /**
+   * Assert the cart rendered in its LOGGED-IN form, reloading if it didn't.
+   *
+   * Seen on drmarty prod (2026-08-19, cart-paypal-button): login had succeeded — we'd
+   * already waited for /my-account — but a later `/cart?product1=` navigation rendered
+   * the LOGGED-OUT cart shell (header "Create Account | Log In", body "Checkout as
+   * Guest" + "LOG IN"), and `#paypal-button` sat present-but-hidden in that state, so
+   * the spec timed out on a visibility check that could never pass.
+   *
+   * A reload re-requests /cart with the auth cookie, so if this is a render/caching
+   * race the reload clears it. If it is NOT a race — a genuine prod session bug — the
+   * retry log below fires on every attempt and the thrown message says so explicitly,
+   * which is the signal to escalate rather than keep hardening the test.
+   *
+   * Call this after any navigation to /cart in a logged-in spec, before asserting on
+   * controls that only render for an authenticated cart.
+   */
+  async waitForLoggedInCart({ reloads = 2 } = {}) {
+    const loggedInControl = this.submitOrderButton.or(this.changeShippingLink).first();
+
+    for (let attempt = 0; attempt <= reloads; attempt++) {
+      const ok = await loggedInControl
+        .waitFor({ state: 'visible', timeout: 15000 })
+        .then(() => true)
+        .catch(() => false);
+      if (ok) return;
+
+      if (attempt === reloads) break;
+      console.log(
+        `[cart] rendered the LOGGED-OUT cart while authenticated — reloading (${attempt + 1}/${reloads})`
+      );
+      await this.page.reload({ waitUntil: 'commit' });
+      await this.dismissPopupIfPresent();
+      await this.waitForCartLoaded();
+    }
+
+    throw new Error(
+      `Cart kept rendering in logged-out state after ${reloads} reloads, despite a successful login ` +
+      `(no [data-qa="submit-order-btn"] / shipping-address-change-link). ` +
+      `This is a prod session/caching defect, not a test timing issue — file it.`
+    );
   }
 
   async increaseQuantity() {
@@ -156,19 +241,34 @@ class CartPage extends BasePage {
     await this.page.waitForTimeout(1500);
   }
 
+  /** Poll until the cart has fewer than `before` rows. Returns false on timeout. */
+  async _waitForRowCountBelow(before, timeout = 15000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      if ((await this.productDeleteLink.count()) < before) return true;
+      await this.page.waitForTimeout(250);
+    }
+    return false;
+  }
+
   async clearCart() {
     await this.goto();
     // Check if cart is already empty
     const isEmpty = await this.isCartEmpty();
     if (isEmpty) return;
 
-    // Remove all items by clicking delete links repeatedly
-    while (true) {
-      const count = await this.productDeleteLink.count();
-      if (count === 0) break;
+    // Remove rows one at a time, waiting for the row count to actually DROP instead of
+    // sleeping a flat 2s per item. The flat sleep was pure dead time — on prod it pushed
+    // checkout-prepopulate's afterEach past the test timeout — and it was also unsafe:
+    // a removal slower than 2s left the row in place and the loop re-clicked it.
+    let count = await this.productDeleteLink.count();
+    while (count > 0) {
       await this.waitForUpsellSpinnerGone();
       await this.productDeleteLink.first().click();
-      await this.page.waitForTimeout(2000);
+      if (!(await this._waitForRowCountBelow(count))) {
+        throw new Error(`clearCart: row count stayed at ${count} 15s after clicking Remove`);
+      }
+      count = await this.productDeleteLink.count();
     }
   }
 

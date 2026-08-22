@@ -20,7 +20,8 @@
     "drmarty": {
       "displayName": "Dr. Marty Pets",
       "logoAltText": "Dr. Marty",
-      "storeLocatorUrl": "https://store.drmartypets.com/",
+      "_comment_storeLocatorUrlPattern": "Regex SOURCE (same convention as content.csHours) for the header Store Locator href. Accepts BOTH shapes because the destination has moved: prod now serves a first-party /store-locator page, older/other envs used the store.<domain> subdomain. Verified on DMP prod 2026-08-19 = /store-locator.",
+      "storeLocatorUrlPattern": "^(/store-locator/?|https://store\\.drmartypets\\.com/?)$",
       "primaryDomain": "drmartypets.com",
       "urls": {
         "uat": {
@@ -92,6 +93,7 @@
         "subscriptionTermsUrl": "subscription_terms",
         "cancelReason": "another reason"
       },
+      "shippingCityRequired": true,
       "testAddress": {
         "firstName": "Golden",
         "lastName": "Pet",
@@ -110,7 +112,7 @@
     "badlands": {
       "displayName": "Badlands Ranch",
       "logoAltText": "Badlands Ranch",
-      "storeLocatorUrl": "https://store.badlandsranch.com/",
+      "storeLocatorUrlPattern": "^(/store-locator/?|https://store\\.badlandsranch\\.com/?)$",
       "primaryDomain": "badlandsranch.com",
       "urls": {
         "uat": {
@@ -182,6 +184,8 @@
         "cancelReason": "another reason",
         "subscriptionTermsUrl": "badlandsranch-terms"
       },
+      "_comment_shippingCityRequired": "TODO (when fixed): TEMPORARY per-env split — BRP's City-required shipping validation is ALREADY LIVE ON UAT but not yet on prod (both verified 2026-08-19); it lands on prod in the next release. DMP enforces it in both envs. Collapse this to plain `true` and delete this note once BRP prod ships it, then re-run cartv3:account:shipping on badlands prod.",
+      "shippingCityRequired": { "uat": true, "prod": false },
       "testAddress": {
         "firstName": "Golden",
         "lastName": "Pet",

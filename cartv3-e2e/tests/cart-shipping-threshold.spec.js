@@ -46,7 +46,14 @@ test.describe('Cart - Shipping Threshold', () => {
     // to clear the threshold. (Re-verify DMP after this change — should still pass.)
     await cartPage.addProductByKey('loggedin_std_1');
 
-    // Verify shipping says "Calculated on Next Page" on the cart
+    // Verify shipping says "Calculated on Next Page" on the cart.
+    // (Logged for diagnosis: a " $4.95 " reading here on 2026-08-19 turned out to be
+    // [data-qa="shipping"] on /CHECKOUT — the add-to-cart nav had aborted and left the
+    // page there. Fixed in CartPage._gotoAddToCart; the assertion stays strict.)
+    console.log(
+      `[shipping-threshold] cart shipping after crossing threshold: ` +
+      `"${((await cartPage.shippingText.textContent()) || '').trim()}" @ ${page.url()}`
+    );
     await expect(cartPage.shippingText).toContainText('Calculated on Next Page');
 
     // Go to checkout as guest

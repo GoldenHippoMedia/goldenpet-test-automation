@@ -2,7 +2,7 @@
 
 This file is auto-loaded by Claude Code. Read it first before doing any work in this folder.
 
-> **Last verified:** 2026-06-08 — Checkout batch (6 specs: `checkout-subscription-terms`, `checkout-coupon-validation`, `checkout-form-validation`, `checkout-header-display`, `checkout-country-state`, `checkout-prepopulate`) added and **verified green here** (UAT, headed). Ports the 8 Checkout-V2 + 1 Cart/Checkout GI tests → 6 specs ("Footer Links Check" dropped as redundant with `cart-terms-and-privacy-links.spec.js`). Read-only (no orders) → out of `@real-order`. Key audit findings (see "Checkout Page (/checkout)" reference): /checkout form fields now have clean `data-qa` (shipping uses `--shipping` suffix, billing `-`); checkout is STRICTER than /account-details (Email + City required); coupon `apply-coupon` → 404 invalid / 200 valid + "Coupon not found" toast (observer-based capture — toast retains last msg); inline validation errors are `.invalid-message` scoped to the section (input sits in a nested fieldset); subscription terms (`[data-qa="subscription-terms-text"]`) render on /cart + /checkout with all disclosure links verified by destination. Brand-content values (coupon `AUTOTEST1`, CS phone/hours, first-party domain, free-shipping text) were moved out of test logic into `data/site-config.json` and are read via `brand.content.*` / `brand.primaryDomain` (done 2026-06-10) — see Backlog "Brand-portability of the checkout specs". Extended `pages/checkout.page.js` + `pages/cart.page.js` + `pages/base.page.js` (observer-based toast capture); added `data/checkout-country-cases.json` + `data/checkout-field-validation.json`; npm `cartv3:checkout:{all,subscription-terms,coupon,form-validation,header,country-state,country-us,country-can,prepopulate}:uat`. Prior: 2026-06-05 — Profile & Settings batch (`account-update-customer-info.spec.js`, `account-update-shipping-address.spec.js` [data-driven US + CAN], `account-update-billing-address.spec.js`) added and **verified green here** (UAT, headed, 6 tests). All on `/account-details` ("Manage Account"). Each snapshots the account's current values and restores them (afterEach safety net) → required-field validation (empty field → inline error + Save disabled + no PUT) → mutate → assert the save `PUT /account-service/proxy/account/{id}` status + request body + "Successfully updated account" toast → reload round-trip. Shipping is data-driven from `data/shipping-address-cases.json` (one test per country; asserts the Country→State/Province dropdown swap). Billing (no GI source) exercises the "Different Billing Address" toggle and round-trips/cleans up via the backend `billingAddress` (the toggle state isn't persisted by the app). Extended `pages/account-details.page.js` (+`fetchAccount()`), hardened `pages/base.page.js` popup-dismiss against a navigation race, and added a `QA_UA_TOKEN`-driven Cloudflare bot-bypass User-Agent in `playwright.config.js` (DevOps allow-lists `DrMartyQA/<token>`; secret lives in `.env`). npm: `cartv3:account:{all,customer-info,shipping,shipping-us,shipping-can,billing}:uat`. Earlier same batch context: 2026-06-03 — Manage Payments port (`payment-add-card.spec.js`) added and **verified green here** (UAT, headed). Add a CC via the Braintree hosted-field form on `/payment-details` → assert backend save POST (<300) + a new `**** 4242` row in My Card(s) → exercise the remove modal (NEVERMIND cancels non-destructively; YES removes) → assert backend delete call (<300) + the success toast + the row disappears. UAT-only (skips prod — don't submit/store cards on prod). Adds `pages/payment-details.page.js`, `brand.addCardTestCard` (4242 card), npm `cartv3:payments:add-card:uat`. Established a **mandatory data-qa audit step** before working any page (see "Selector strategy"). Earlier same day: Order History port (`order-loggedin-list-reorder.spec.js`) added and **verified green here** (UAT, headed). Comprehensive `/order-history` test: list smoke, per-card validation (date / payment method / math / image render), pagination, Buy It Again (product-identity round-trip to PDP), Re-Order All (product-identity round-trip to /cart), `afterEach` cart cleanup. Adds `pages/order-history.page.js`. Prior context: Pet Profiles batch (4 specs) verified green 2026-06-02; CartV3 suite migrated from gh-auto-funnel-tools; 19 earlier tests + 6-test Order Placement batch are ported but **still pending verification here**. Tests live in `tests/` as `.spec.js` files. Requires `.env` with PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD for the PayPal tests, and `<BRAND>_<ENV>_ACCOUNT_ID` (or `data/site-config.json` → `testAccountIds`) for the Pet Profiles API setup.
+> **Last verified:** 2026-08-19 — **Prod failure sweep. DMP prod 8/8 GREEN** (was 8 failing), **BRP prod 7/8** — first time Badlands has ever been run. Ten prod failures triaged into four unrelated causes, none of them Cloudflare: (1) **add-to-cart `net::ERR_ABORTED`** — the app consumes `?product1=` and client-side-redirects, beating DOMContentLoaded. Fixed in `CartPage._gotoAddToCart()` (`waitUntil:'commit'`, tolerate the abort, **verify the URL and re-navigate**, hard-gate on `waitForURL(/\/cart/)`). Critical sub-finding: an abort can leave you on the PREVIOUS page, and `waitForCartLoaded()` false-greens there because **/checkout also renders `[data-qa="product-name"]`** → 90s timeouts on missing cart-only controls. (2) **Member-pricing spec was self-comparing** — it snapshotted prices post-login before member pricing applied, so it asserted `59.95 > 59.95`; now reloads + `expect.poll`s until the price drops (DMP 59.95→30.95, BRP 59.95→40.95 — member pricing was never broken). (3) **Shipping City OPTIONAL→REQUIRED**, rolling out per brand **AND per env**: DMP both envs, BRP UAT yes / prod next release → driven by `brand.shippingCityRequired`, resolved per env by the fixture (a brand-only flag was wrong and broke BRP UAT). (4) **Logged-in cart intermittently renders its LOGGED-OUT shell** after a successful login (DMP + BRP prod) → new `cartPage.waitForLoggedInCart()` guard, unconfirmed root cause, see Known Open Bugs. Also: `CART-9124` is **wider than its ticket says** (reproduced with two DISTINCT subscription line items, not just duplicates); Store Locator's assertion was **tautological** (locator selected on the href it then asserted) → now text-located + `brand.storeLocatorUrlPattern`; header nav hrefs are **relative on CMS pages, absolute on app pages**; `run-brands.js` **hung after brand 1** because `reporter:'html'` defaults to `open:'on-failure'` (fixed, plus per-brand report/output dirs). Login hardening (`LoginPage`) went through THREE iterations, and the failures are worth knowing: v1 gated on the submit button being enabled inside a 5s window and **threw** — it hard-failed two specs on UAT where the old inline fill was fine. v2 dropped the gate and never threw, but then badlands UAT showed the form **re-mounting during the click**, leaving a disabled button that `click()`'s unbounded auto-wait ground on for the full 90s. v3 (current) retries **fill → enable-check → click → navigate as one unit**, every wait bounded, retrying only while still on `/login` so it can never break a login that already succeeded. `fillCredentials()` stays best-effort/never-throws; only `loginAndWait()` fails, with the observed form state in the message. STILL OPEN — the HEADER specs only: `header.spec.js` is now **`test.fixme()`'d** (known broken, fix in progress) and `cart-verify-header-links` remains DMP-skipped. Both are blocked on the same thing: header nav hrefs are RELATIVE on CMS pages but ABSOLUTE on Angular app pages, so on drmarty prod `header.spec.js` failed at TWO DIFFERENT links on consecutive runs (Store Locator, then Shop) depending only on which page it was standing on. The Store Locator locator/assertion fix landed but is UNVERIFIED while the spec is parked. See Backlog → "Cross-brand test strategy" (the parent decision) and "Brand-portable header nav testing". Prior: 2026-06-08 — Checkout batch (6 specs: `checkout-subscription-terms`, `checkout-coupon-validation`, `checkout-form-validation`, `checkout-header-display`, `checkout-country-state`, `checkout-prepopulate`) added and **verified green here** (UAT, headed). Ports the 8 Checkout-V2 + 1 Cart/Checkout GI tests → 6 specs ("Footer Links Check" dropped as redundant with `cart-terms-and-privacy-links.spec.js`). Read-only (no orders) → out of `@real-order`. Key audit findings (see "Checkout Page (/checkout)" reference): /checkout form fields now have clean `data-qa` (shipping uses `--shipping` suffix, billing `-`); checkout is STRICTER than /account-details (Email + City required); coupon `apply-coupon` → 404 invalid / 200 valid + "Coupon not found" toast (observer-based capture — toast retains last msg); inline validation errors are `.invalid-message` scoped to the section (input sits in a nested fieldset); subscription terms (`[data-qa="subscription-terms-text"]`) render on /cart + /checkout with all disclosure links verified by destination. Brand-content values (coupon `AUTOTEST1`, CS phone/hours, first-party domain, free-shipping text) were moved out of test logic into `data/site-config.json` and are read via `brand.content.*` / `brand.primaryDomain` (done 2026-06-10) — see Backlog "Brand-portability of the checkout specs". Extended `pages/checkout.page.js` + `pages/cart.page.js` + `pages/base.page.js` (observer-based toast capture); added `data/checkout-country-cases.json` + `data/checkout-field-validation.json`; npm `cartv3:checkout:{all,subscription-terms,coupon,form-validation,header,country-state,country-us,country-can,prepopulate}:uat`. Prior: 2026-06-05 — Profile & Settings batch (`account-update-customer-info.spec.js`, `account-update-shipping-address.spec.js` [data-driven US + CAN], `account-update-billing-address.spec.js`) added and **verified green here** (UAT, headed, 6 tests). All on `/account-details` ("Manage Account"). Each snapshots the account's current values and restores them (afterEach safety net) → required-field validation (empty field → inline error + Save disabled + no PUT) → mutate → assert the save `PUT /account-service/proxy/account/{id}` status + request body + "Successfully updated account" toast → reload round-trip. Shipping is data-driven from `data/shipping-address-cases.json` (one test per country; asserts the Country→State/Province dropdown swap). Billing (no GI source) exercises the "Different Billing Address" toggle and round-trips/cleans up via the backend `billingAddress` (the toggle state isn't persisted by the app). Extended `pages/account-details.page.js` (+`fetchAccount()`), hardened `pages/base.page.js` popup-dismiss against a navigation race, and added a `QA_UA_TOKEN`-driven Cloudflare bot-bypass User-Agent in `playwright.config.js` (DevOps allow-lists `DrMartyQA/<token>`; secret lives in `.env`). npm: `cartv3:account:{all,customer-info,shipping,shipping-us,shipping-can,billing}:uat`. Earlier same batch context: 2026-06-03 — Manage Payments port (`payment-add-card.spec.js`) added and **verified green here** (UAT, headed). Add a CC via the Braintree hosted-field form on `/payment-details` → assert backend save POST (<300) + a new `**** 4242` row in My Card(s) → exercise the remove modal (NEVERMIND cancels non-destructively; YES removes) → assert backend delete call (<300) + the success toast + the row disappears. UAT-only (skips prod — don't submit/store cards on prod). Adds `pages/payment-details.page.js`, `brand.addCardTestCard` (4242 card), npm `cartv3:payments:add-card:uat`. Established a **mandatory data-qa audit step** before working any page (see "Selector strategy"). Earlier same day: Order History port (`order-loggedin-list-reorder.spec.js`) added and **verified green here** (UAT, headed). Comprehensive `/order-history` test: list smoke, per-card validation (date / payment method / math / image render), pagination, Buy It Again (product-identity round-trip to PDP), Re-Order All (product-identity round-trip to /cart), `afterEach` cart cleanup. Adds `pages/order-history.page.js`. Prior context: Pet Profiles batch (4 specs) verified green 2026-06-02; CartV3 suite migrated from gh-auto-funnel-tools; 19 earlier tests + 6-test Order Placement batch are ported but **still pending verification here**. Tests live in `tests/` as `.spec.js` files. Requires `.env` with PAYPAL_SANDBOX_EMAIL / PAYPAL_SANDBOX_PASSWORD for the PayPal tests, and `<BRAND>_<ENV>_ACCOUNT_ID` (or `data/site-config.json` → `testAccountIds`) for the Pet Profiles API setup.
 
 ---
 
@@ -131,7 +131,8 @@ row here. (The soft logs also flip to a "may be fixed — tighten me" note in th
 |--------|------|-----|----------------------------------------------|
 | [CART-9082](https://goldenhippomedia.atlassian.net/browse/CART-9082) | `subscription-update-shipping-address.spec.js` | Subscription **Additional Address (`line2`) can be SET but not CLEARED** — emptying it drops the field from the PUT, backend keeps the old value. | Asserts line2 *sets* only; never restores it to empty. When fixed: assert clearing empties line2 (UI + backend). |
 | [CART-9120](https://goldenhippomedia.atlassian.net/browse/CART-9120) | `subscription-skip-next-order.spec.js` | **Skip modal previews the wrong skip-to date** — computes +60 days vs the backend's +2 calendar months, so it's off by a day for multi-month cadences. | Asserts date *advanced forward* + summary matches the backend; soft-logs the modal-preview mismatch. When fixed: restore strict `sameDisplayDate(summary, next)`. |
-| [CART-9124](https://goldenhippomedia.atlassian.net/browse/CART-9124) | `order-loggedin-list-reorder.spec.js` | **Re-Order All returns an EMPTY cart when the order contains 2× the exact same product** (identical line items); works for distinct products. Confirmed on prod (drmarty) 2026-07-20 — NOT a UAT seed-data quirk. | Spec auto-picks `firstReorderableCard()` → intermittently lands on such an order → `waitForCartLoaded` times out. Non-deterministic on the shared account (a pass doesn't clear the bug). When fixed: verify manually via a known 2×-identical order; optionally make card-selection deterministic. |
+| [CART-9124](https://goldenhippomedia.atlassian.net/browse/CART-9124) | `order-loggedin-list-reorder.spec.js` | **Re-Order All returns an EMPTY cart.** Originally scoped to "2× the exact same product" (identical line items). **WIDER than that — 2026-08-19, drmarty prod, ORD-172520845 reproduced it with TWO DISTINCT products that were both SUBSCRIPTION line items** ("Tilly's Treasures - 1 Unit Subscription" + "Nature's Feast … Cat Food 12oz - 1 Unit Subscription"), so duplicates are not the trigger — subscription line items are implicated. Ticket needs this detail added. | Spec auto-picks `firstReorderableCard()` → intermittently lands on such an order → the cart comes back empty. Non-deterministic on the shared account (a pass doesn't clear the bug). When fixed: verify manually against BOTH a 2×-identical order AND a multi-subscription order; optionally make card-selection deterministic. |
+| _no ticket yet — confirm first_ | `cart-paypal-button.spec.js`, `cart-verify-fields-and-links.spec.js` | **Logged-in cart intermittently renders in its LOGGED-OUT shell** after a login that demonstrably succeeded (we already waited for `/my-account`). Symptoms: "CREATE ACCOUNT / LOGIN" in the header, a "LOG IN" + "Checkout as Guest" button in the cart body, `#paypal-button` present-but-hidden, `[data-qa="shipping-street"]` absent, and **standard instead of member pricing** on the same account that got member pricing seconds earlier. Seen on **DMP prod 2026-08-19** and **BRP prod 2026-08-19**. Suspected auth/CDN caching race on the /cart render. | `cartPage.waitForLoggedInCart()` reloads up to 2× before any logged-in-only assertion. It logs `[cart] rendered the LOGGED-OUT cart while authenticated — reloading (n/2)` each time. **If that log fires and the reload CLEARS it → render race, leave the guard in place. If it throws after both reloads → real session/caching defect: file it.** Do not "fix" this by loosening the assertions. |
 | [BW-7357](https://goldenhippomedia.atlassian.net/browse/BW-7357) | `thank-you-page.spec.js` | **Tilly's Treasures product display-name mismatch** — Cart shows "Tilly's Treasure Beef Liver Treats", Order Confirmation shows "Dr. Marty Tilly's Treasures - 1 Bag". May be fixed on prod already but still reproduces on UAT (confirmed 2026-07-21). | `assertProductNamesMatch` is intentionally left strict to keep surfacing this — do NOT loosen it. When fixed on UAT: re-run with the Tilly's variant to confirm the row disappears. |
 
 ### B. Missing `data-qa` — ask the team to add (with current fallback)
@@ -148,6 +149,7 @@ the row here. (The team keeps adding `data-qa` — re-audit a page before trusti
 | Manage Payments (`/payment-details`) | Saved-card list cards; remove-modal **confirm** ("YES") + **cancel** ("NEVERMIND") buttons | class/text for cards; `aria-label` for modal buttons |
 | Manage Account (`/account-details`) | Section "Edit" link; inline validation error | `<p>`-text "Edit"; `.invalid-message` |
 | Order History (`/order-history`) | Order cards + their buttons | class/text-based |
+| Header nav (all pages) | Nav links (Shop / Subscribe / Reviews / FAQ / Contact / **Store Locator**) | `a.header__nav__link[href="…"]` on DMP — brittle: hrefs are relative on CMS pages, absolute on app pages, and Store Locator's destination has moved. Store Locator now matched by TEXT + `brand.storeLocatorUrlPattern`. **On BRP the nav is Builder-authored with NO href and NO data-qa** (volatile `builder-<hash>` classes only), which is why `header.spec.js` + `cart-verify-header-links.spec.js` `test.skip` badlands. A `data-qa` per nav item would let both specs run on every brand — see Backlog "Brand-portable header nav testing". |
 | Subscription Editor (`/subscription-edit`) | Quantity select; Recipient Info modal **Update**/**Close** buttons; "Yes, I want to update" agreement checkbox; Ship Now **success popup** | `select#quantityId`; exact-name/`Close`; label-text; copy-match (apostrophe-agnostic) |
 | Subscription cancellation (`/subscription-cancellation`) | Cancel-confirm modal **confirm** + **dismiss** buttons | `aria-label` (`Click to confirm cancel` / `Click to close modal without cancelling`) |
 
@@ -185,6 +187,36 @@ the row here. (The team keeps adding `data-qa` — re-audit a page before trusti
   header) on the **Turnstile/managed-challenge + rate-limit rules** for the checkout & order
   `*/proxy/*` submit endpoints, both prod zones. Evidence already captured (DMP prod):
   `cf-ray=a1b429dfaf63f79d-LAX` / `a1b42a5debff55c7-LAX`.
+- **❌ NOT a DevOps issue: "login submit stays disabled on prod" is NOT Turnstile.**
+  Recorded because it was investigated and *wrongly* attributed to Turnstile first
+  (2026-08-19) — check this before raising anything with DevOps.
+  Turnstile's script IS present on prod `/login`
+  (`challenges.cloudflare.com/turnstile/v0/api.js?render=explicit`, plus
+  `/cdn-cgi/challenge-platform/…`), which makes it a tempting culprit. **It does not gate the
+  login button.** Live-probed on BOTH prod brands, read-only, no submit:
+
+  | | DMP prod | BRP prod |
+  |---|---|---|
+  | Turnstile script | `api.js?render=explicit` | same |
+  | `window.turnstile` | object | object |
+  | Turnstile **iframes / widget** | **0 / none** | **0 / none** |
+  | `cf-turnstile-response` input | **absent** | **absent** |
+  | Button, valid email + password | **ENABLED** | **ENABLED** |
+
+  `render=explicit` means the widget only appears if the app calls `turnstile.render()` — it
+  never does on `/login`, so no widget and no token exist, and the submit button is gated by
+  **client-side validation only** (valid email pattern + non-empty password). The two brands
+  are identical here, so brand-to-brand differences on this symptom are NEVER a config
+  difference — don't raise one.
+  **Actual cause:** `fill()` sets the value and fires a single `input` event that the
+  `gh-input` custom-element wrapper can miss, so Angular's value accessor never runs and the
+  form model stays invalid while `inputValue()` still reads the text back. Tell-tale:
+  `email chars=22, password chars=10, submit disabled=true` with **NO `.invalid-message`**
+  anywhere. Same class as the documented Braintree row in Common Failure Patterns. Fixed by
+  `pressSequentially()` in `LoginPage.fillCredentials`.
+  (Separately: never build a Turnstile bypass. It is bot-detection circumvention, and the test
+  would stop reflecting the real user path. The genuine Turnstile items are on the
+  checkout/payment SUBMIT paths — see the item above this one.)
 - **`QA_UA_TOKEN` allow-list on each NEW brand's UAT Cloudflare zone** before running the suite
   there (else logged-in navs hit the bot wall). See Backlog "Brand-portability".
 
@@ -314,6 +346,16 @@ All 19 tests below were passing in `gh-auto-funnel-tools/Cartv3 tests/` before m
 - `order-loggedin-cart-paypal.spec.js` — Logged-in: PayPal button on the cart page; cart auto-submits after popup closes. UAT only. Skips `assertShippingThreshold` (logged-in free-shipping benefit). Tagged `@real-order`
 - `order-loggedin-checkout-cc.spec.js` — Logged-in: cart → /checkout (via shipping change link) → submit with saved CC. Skips `assertShippingThreshold`. Tagged `@real-order`
 - `order-loggedin-checkout-paypal.spec.js` — Logged-in: cart → /checkout → PayPal; /checkout auto-submits after popup closes. UAT only. Skips `assertShippingThreshold`. Tagged `@real-order`
+
+> **2026-08-19 — six of the above are now verified on DMP *prod* (and UAT), not just in the
+> source repo:** `auth-empty-cart-login-redirect`, `cart-logged-out-verify-pricing-after-login`,
+> `cart-verify-fields-and-links`, `cart-paypal-button`, `cart-shipping-threshold`, plus
+> `checkout-prepopulate` and `account-update-shipping-address` from the batches below. All
+> green on DMP prod (8/8) in the prod failure sweep; the same set is 7/8 on BRP prod (only
+> `cart-verify-fields-and-links` outstanding there — the logged-out-cart-shell bug).
+> **NOT yet verified:** `header.spec.js` (not re-run since the Store Locator fix) and
+> `cart-verify-header-links.spec.js` (blocked on the header-nav strategy decision — Backlog).
+
 ### ✅ Verified green here (UAT, headed)
 Tests below are run and passing **in this repo** (not just the source repo).
 
@@ -703,15 +745,32 @@ npm run report
 # Run a single brand: override BRAND (the fixture reads it once per process)
 HEADED=1 BRAND=badlands ENVIRONMENT=uat npx playwright test tests/subscription-update-quantity.spec.js
 
-# Pin the Re-Order All order in order-loggedin-list-reorder (that spec picks a
-# reorderable order at RANDOM for coverage; the chosen ORD- id is always logged).
-# Use this to reproduce a failure deterministically against the same order:
+# order-loggedin-list-reorder picks its Re-Order All order DETERMINISTICALLY (first
+# candidate with all line items priced > $0 — see CART-9257 in the Backlog). Two overrides:
+#   REORDER_ORDER_ID=<ORD-…>  pin one specific order (reproduce a run exactly)
+#   REORDER_RANDOM=1          random selection instead, for exploratory sweeps
 REORDER_ORDER_ID=ORD-000875833 BRAND=badlands ENVIRONMENT=uat npx playwright test tests/order-loggedin-list-reorder.spec.js
 
 # Run the SAME spec(s) across MULTIPLE brands, sequentially (one run per brand, via run-brands.js):
 #   BRANDS defaults to "drmarty,badlands", ENVIRONMENT to "uat"; HEADED/SLOWMO inherited.
 BRANDS=drmarty,badlands ENVIRONMENT=uat npm run cartv3:multi -- tests/subscription-*.spec.js
 ```
+
+**Multi-brand runs write PER-BRAND artifacts** (`run-brands.js`, 2026-08-19): each brand gets
+`playwright-report/<brand>` and `test-results/<brand>`, and the closing summary prints a
+`show-report` command per brand. Before this, brand 2 overwrote brand 1's report AND its
+screenshots/`error-context.md`, so only the last brand was debuggable.
+
+`run-brands.js` also forces `PLAYWRIGHT_HTML_OPEN=never` for its child runs. **Do not remove
+that** — `reporter: 'html'` defaults to `open: 'on-failure'`, which starts a blocking report
+server; under `spawnSync` that hangs the wrapper on the first brand with a failure, and the
+Ctrl+C needed to escape kills the whole run, so later brands silently never execute. Single
+brand `npx playwright test` runs are unaffected and still auto-open the report.
+
+**A quiet run is usually not a hang.** The list reporter prints per test on completion, so N
+timing-out tests look like N × 90s of silence. Check for progress counters (`[5/8]`) before
+assuming a stall — and prefer bounded waits in specs (see the PayPal popup row in Common
+Failure Patterns) so a failure reports fast with a real message.
 
 `playwright.config.js` has `retries: 0` — tests do NOT auto-retry on failure. Fix the test before re-running.
 
@@ -743,8 +802,15 @@ BRANDS=drmarty,badlands ENVIRONMENT=uat npm run cartv3:multi -- tests/subscripti
 |------|----------|
 | Product name | `[data-qa="product-name"]` |
 | Product price | `[data-qa="product-price"]` |
-| Product quantity (text) | `[data-qa="product-quantity"]` |
-| Quantity number display | `[data-qa="quantity"]` |
+| **Pack descriptor** (NOT the quantity) | `[data-qa="product-quantity"]` — renders **"1 Jar" / "1 Bag" / "1 Unit"**. Present on EVERY row, subscriptions included. ⚠️ Regexing the leading digit out of this yields the PACK SIZE, not how many the customer is buying. |
+| **Actual quantity** (stepper value) | `[data-qa="quantity"]` — the real count (1, 2, 3 …). **Absent on subscription rows** (no stepper), which is also the structural subscription signal: `count() > 0` ⇒ standard line. |
+
+> ⚠️ **Read quantity from `[data-qa="quantity"]`, and only fall back to parsing
+> `product-quantity` for subscription rows.** The reverse order silently reports 1 for every
+> row: pack-1 and quantity-1 coincide on the overwhelming majority of test data, so the bug
+> passes for months. `order-loggedin-list-reorder` had it until a qty-**3** order surfaced it
+> (drmarty UAT 2026-08-19: "expected 3, received 1" on a cart whose money was correct —
+> $149.85 = 3 × $49.95). Money matching while quantity mismatches is the tell.
 | Remove link | `[data-qa="product-delete-link"]` |
 | Decrease qty (minus) | `[data-qa="product-delete-btn"]` |
 | Increase qty (plus) | `[data-qa="quantity-increase-btn"]` |
@@ -773,6 +839,21 @@ BRANDS=drmarty,badlands ENVIRONMENT=uat npm run cartv3:multi -- tests/subscripti
 - CMS pages (homepage, /products): cart icon is `a[href="/cart"]`
 - Angular app pages (/my-account, /cart, /checkout): cart icon is `div.cart`
 - Page object handles both: `'a[href="/cart"]:visible, div.cart:visible'`
+- ⚠️ **Nav-link hrefs are RELATIVE on CMS pages but ABSOLUTE on app pages** (found on DMP
+  prod 2026-08-19). On the homepage/CMS the nav renders `href="/products"`; on **/cart** the
+  same nav renders `href="https://drmartypets.com/products"` (likewise `/faq-bridge`,
+  `/store-locator`). So `a.header__nav__link[href="/products"]` matches on CMS pages and
+  silently never matches on /cart — `cart-verify-header-links.spec.js` burned its full 90s
+  waiting for it. Any header nav locator used from an app page must accept both forms (or
+  match on text). See the Backlog item "Brand-portable header nav testing".
+- **Store Locator: locate by TEXT, assert the href against a pattern.** The destination
+  varies per brand and has MOVED (DMP prod went from the `store.drmartypets.com` subdomain
+  to a first-party `/store-locator` path). `headerPage.storeLocatorLink` now matches
+  `a.header__nav__link:has-text("Store Locator")` and `header.spec.js` asserts the href
+  against **`brand.storeLocatorUrlPattern`** (regex source in `site-config.json`, accepts
+  both shapes). The OLD locator selected on `href="<expected>"` and the spec then asserted
+  that same href — a tautology that could only pass or say "element(s) not found", so the
+  URL move surfaced as a bogus href *mismatch*. Don't reintroduce that shape.
 
 ### Login Page
 | What | Selector |
@@ -1129,18 +1210,38 @@ the only gaps are the Edit links and the inline validation text.
   PUT**. (Contrast the Pets form, where Save stays enabled and blocks on click.)
   There is NO client-side postal/phone FORMAT validation — letters in zip / a short
   phone are accepted by the form.
-- **Which fields are required (audit-confirmed 2026-06-05):**
+- **Which fields are required (re-verified 2026-08-19 on DMP + BRP, UAT + prod):**
   - Customer Info: **First Name, Last Name** required; **Phone, Email OPTIONAL**
     (clearing them does NOT block Save).
-  - Shipping: **Street, Zip/Postal** required; City, Additional, Country, State OPTIONAL.
+  - Shipping: **Street, Zip/Postal** required on every brand; Additional, Country, State
+    OPTIONAL. **City is BRAND-DEPENDENT — see below.**
   - Billing: **Street, City, Zip/Postal** required; Additional, Country, State OPTIONAL.
-  - ⚠️ **Shipping and Billing differ on City** — the SAME reused `<address-form>`
-    treats City as optional for shipping but REQUIRED for billing. Verify per-instance;
-    don't assume they match. (Looks like a product inconsistency — candidate to flag.)
+  - ⚠️ **Shipping City went OPTIONAL → REQUIRED — rolling out per brand AND per env.** The
+    old note here said shipping and billing "differ on City"; that inconsistency is being
+    FIXED, not preserved. Verified state as of 2026-08-19:
+
+    | Brand | UAT | prod |
+    |-------|-----|------|
+    | drmarty | **required** | **required** |
+    | badlands | **required** | still optional (next release) |
+
+    - `account-update-shipping-address.spec.js` reads **`brand.shippingCityRequired`** — a
+      top-level flag the fixture resolves **per env**, not `brand.content.*`. In
+      `site-config.json` it accepts a plain boolean or `{ "uat": true, "prod": false }`.
+      **A brand-only flag is not enough** — a release reaches UAT before prod, so the same
+      brand legitimately differs by env mid-rollout. Getting this wrong is how the flag was
+      first set from prod evidence and then failed on BRP UAT.
+    - **TODO (when fixed):** collapse `badlands.shippingCityRequired` to plain `true` once
+      BRP prod ships it and delete the `_comment_shippingCityRequired` note. The spec needs
+      no change either way.
+    - Unset defaults to **`true`** — a new brand inherits the finished behaviour rather than
+      a legacy exception it would have to opt out of.
+    - Diagnostic tell: **Street's** required-error assertion passes on every brand/env, so a
+      City-only failure is a real validation difference, NOT a missing `.invalid-message`.
   - The specs assert EACH required field individually (clear → inline error + Save
     disabled → restore → Save re-enables) AND assert representative OPTIONAL text
     fields stay non-blocking (clear → Save still enabled): Phone (customer),
-    City + Additional (shipping/billing).
+    Additional (shipping/billing), plus City wherever it is still optional.
 - **Cross-section integrity (regression guard):** one shared Save persists the whole
   record, so each spec verifies (via the account GET) that editing one section does
   NOT alter the others — a customer-info edit leaves shipping + billing addresses
@@ -1314,6 +1415,16 @@ Money parsing: `parseMoney("$179.85")` → `179.85`, `parseMoney("Free")` → `0
 | Strict mode violation on First Name | Footer form conflict | Scope to `main` |
 | Product name comparison fails | Different display copy per page | `assertProductNamesMatch()` |
 | Multiple PayPal iframes | Two iframes same title | Use `iframe.component-frame.visible` |
+| `net::ERR_ABORTED` on `/cart?product1=…` | The app consumes the query and client-side-redirects; on prod that beats DOMContentLoaded | `CartPage._gotoAddToCart()` — `waitUntil:'commit'`, tolerate the abort, **then verify the URL** (see next row) |
+| Cart-only control never appears (90s timeout) after an add-to-cart nav | The abort CANCELLED the nav and left the page on the PREVIOUS page (usually /checkout). `waitForCartLoaded()` false-greens because **/checkout also renders `[data-qa="product-name"]`** | `_gotoAddToCart()` re-navigates and hard-gates on `waitForURL(/\/cart/)`. Never treat `waitForCartLoaded()` as proof of which page you're on |
+| Logged-in cart renders LOGGED-OUT after a successful login (`#paypal-button` hidden, `[data-qa="shipping-street"]` missing, standard instead of member pricing) | Auth state not applied to the /cart render — suspected caching/session race, seen on DMP + BRP prod | `cartPage.waitForLoggedInCart()` before any logged-in-only assertion; it reloads twice then throws a "file it" message |
+| Header nav locator times out on /cart but works on CMS pages | App-page nav hrefs are ABSOLUTE, CMS-page hrefs are relative | See "Cart Header — cross-page gotcha" |
+| `run-brands` runs brand 1 then hangs forever | `reporter:'html'` defaults to `open:'on-failure'` → blocking report server; `spawnSync` waits on it, and the Ctrl+C to escape kills the whole run so later brands never execute | Fixed in `run-brands.js` (`PLAYWRIGHT_HTML_OPEN=never` + per-brand report/output dirs). Don't "fix" it by changing the config reporter — single-brand runs still auto-open |
+| PayPal spec sits silent then reports only `waiting for event "popup"` | Unbounded `page.waitForEvent('popup')` eats the whole 90s test timeout | Pass an explicit `{ timeout }` and a label naming the surface (`cart / subscription`, …) |
+| 90s of `element is not enabled` on `[data-qa="login-btn"]`, often with `element was detached from the DOM, retrying` | The Angular login form **re-mounts during the click** — after fill+verify succeeded. The re-mount wipes the inputs and re-disables submit, and `click()`'s unbounded auto-wait then consumes the whole test timeout (badlands UAT 2026-08-19) | `LoginPage.loginAndWait()` retries **fill → enable-check → click → navigate as one unit**, every wait bounded, and only while still on `/login`. Don't split the enable-check away from the click, and don't leave the click unbounded |
+| Cart quantity asserts 1 when the order had more, but the PRICE matches | Read `[data-qa="product-quantity"]` (pack text "1 Jar") instead of `[data-qa="quantity"]` (stepper) | See the Cart Page selector table — stepper first, pack text only for subscription rows |
+| Subscription self-heal hangs on a disabled `[data-qa="update-btn"]` | The value being restored is no longer VALID (e.g. Ship Now advanced the cycle, so the original next-order date is now in the past and the form rejects it) — Angular keeps Update disabled and `click()` waits forever | Check `updateBtn.isEnabled()` before clicking; if disabled, log the sub id + target date for manual cleanup instead of clicking. A self-heal that can't heal must say so, not hang |
+| Login helper "fixed" but a spec that used to pass now fails | A shared login helper is on the critical path of nearly every logged-in spec, so any hard failure or over-strict gate in it fails specs that were fine | `fillCredentials()` must never throw (best-effort refill); only `loginAndWait()` may fail, and only after bounded retries with the observed form state in the message |
 
 ---
 
@@ -1331,6 +1442,16 @@ brand.content.csPhone            // CS phone in checkout hdr  (drmarty: "1-800-6
 brand.content.csHours            // { weekday, weekend } regex-source strings for the CS-hours lines
 brand.content.freeShippingText   // free-shipping cell text   (drmarty: "FREE!")
 brand.primaryDomain              // first-party domain, no scheme (drmarty: "drmartypets.com")
+
+// Brand APP-BEHAVIOUR flags — NOT brand.content.*, and resolved PER ENV by the fixture.
+// In site-config.json each accepts a boolean OR { "uat": …, "prod": … }; a per-env value is
+// temporary by nature (a release hits UAT before prod) — collapse it once the rollout ends.
+// Unset defaults to TRUE so a new brand inherits finished behaviour, not a legacy exception.
+brand.shippingCityRequired   // City required on /account-details shipping?
+                             // drmarty: both envs. badlands: UAT yes, prod not yet.
+                             // See Manage Account → "Which fields are required"
+brand.storeLocatorUrlPattern // regex SOURCE for the header Store Locator href;
+                             // accepts /store-locator OR store.<domain>
 ```
 
 UAT Braintree test card: `4111 1111 1111 1111` exp `12/26` cvv `123` zip `91364`
@@ -1360,12 +1481,110 @@ UAT Braintree test card: `4111 1111 1111 1111` exp `12/26` cvv `123` zip `91364`
 - Delete `tests/cart-verify-header-links.spec.js` (redundant with `header.spec.js`)
 - Add new brands to `site-config.json` and `data/products/`
 - Add new test suites / tools as **siblings of `cartv3-e2e/`** at the repo root (e.g. `cartv3-unit/`, `api-tests/`) — each gets its own `package.json`, `playwright.config.js`, `pages/`, etc. Do NOT add suites under `tests/` here; this folder is dedicated to CartV3 E2E.
+  - **DOCUMENTED EXCEPTION: `tests/a11y/`** (accessibility lane, added 2026-08-06). It is intentionally NOT a sibling folder — do not "fix" it by moving it out. The rule above exists to stop *unrelated* tools from being buried here; a11y is the opposite case, because `fixtures/axe.js` extends `fixtures/brand.js` and the Phase-3 authenticated scans reuse the existing page objects. A sibling folder would have to duplicate `site-config.json`, `brand.js`, the `QA_UA_TOKEN` Cloudflare UA logic, `base.page.js`'s popup dismissal, and every page object — five files that would immediately drift. It has its own **`playwright.a11y.config.js`** (prod-first, parallel, desktop + mobile) and `playwright.config.js` carries **`testIgnore: '**/a11y/**'`** so functional runs never sweep it in. Full context: [`tests/a11y/README.md`](./tests/a11y/README.md).
+
+---
+
+## Accessibility (a11y) lane — `tests/a11y/`
+
+Added 2026-08-06 on `feature/a11y-axe-scans`. Axe/WCAG scans, **separate config**
+(`playwright.a11y.config.js`), read-only, **not in any release gate**. Full docs:
+[`tests/a11y/README.md`](./tests/a11y/README.md) — read that before touching it.
+
+The three things most likely to be misunderstood later:
+1. **It lives here on purpose, not by accident** — see the documented exception under
+   "Things Safe to Change". `playwright.config.js` has `testIgnore: '**/a11y/**'`.
+2. **The rule set is fixed by a public claim, not preference.** Both brands publish an
+   accessibility statement claiming **WCAG 2.1 A & AA** conformance and both name
+   **Level Access** as their vendor. Scans use exactly `wcag2a/2aa/21a/21aa`. Check
+   whether Level Access already has audit findings before treating our baseline as new.
+3. **`data/a11y-pages.json` is keyed by TEMPLATE id, not URL** — that's what makes DMP's
+   `/product/<slug>` and Badlands' `/p/<slug>` the same template in reports. Adding a
+   brand = a new `brands.<name>.pages` array, no spec changes.
+
+Committed baseline = `tests/a11y/__snapshots__/` (violation fingerprints only). The
+human-readable findings (`a11y-report/`) are generated and gitignored. Phase 3 (authenticated
++ modal-state scans, plus hand-written keyboard/focus-trap tests axe structurally cannot do)
+is not built yet.
 
 ---
 
 ## Backlog (post-migration)
 
 Capture ideas here so they don't get lost. Don't action until the migration is done — finishing the GI → Playwright port keeps the green-suite-as-safety-net intact for any future refactor.
+
+- **Cross-brand test strategy — OPEN, decide before adding brand #3 (raised 2026-08-19).**
+  Badlands (BRP) ran for the FIRST TIME EVER on 2026-08-19, and only **8 specs** of the ~40 in
+  `tests/` have ever executed against it. Everything else in this file's "verified green"
+  claims is **drmarty-only**. Before committing to a cross-brand cadence we need a plan for
+  what "runs on every brand" even means, because that first run already surfaced four
+  distinct KINDS of brand difference:
+  1. **App behaviour differs, temporarily — AND per ENV, not just per brand.** Shipping City
+     is required on DMP (both envs) and on BRP **UAT**, but not yet BRP **prod**. Config-driven
+     via `brand.shippingCityRequired`, which the fixture resolves per env. **Lesson: a
+     rollout-in-progress difference is brand × env.** Setting such a flag from one env's
+     evidence alone will fail in the other — it did here.
+  2. **App behaviour differs, permanently** — member-price deltas (DMP 59.95→30.95, BRP
+     59.95→40.95), free-shipping thresholds (DMP $50, BRP $49).
+  3. **Markup differs structurally** — DMP's coded Angular header vs BRP's Builder-authored
+     one with no hrefs and no `data-qa`. No shared selector exists.
+  4. **Env-specific quirks that are NOT brand differences** — the add-to-cart
+     `net::ERR_ABORTED` fires on DMP prod and never on BRP, so a brand-conditional fix here
+     would have been wrong; it belongs in the page object for everyone.
+  **The decision to make:** how to keep cross-brand coverage honest without either (i) running
+  everything everywhere and drowning in expected-difference noise, or (ii) quietly skipping
+  BRP forever, which is where we are now.
+  Options to weigh:
+  - **(a) Baseline first.** Run the FULL non-`@real-order` suite once on BRP UAT purely to
+    measure the gap, then triage each failure into: real bug / brand difference to configure /
+    spec not portable. You cannot plan coverage without knowing the gap — right now nobody
+    knows how many of the ~32 unrun specs pass on BRP.
+  - **(b) Classify specs by portability** — brand-agnostic (built on platform `data-qa`, run
+    everywhere) vs brand-specific (CMS/Builder content, run per brand). Could be a tag
+    (`@brand-agnostic`) so `cartv3:multi` runs the portable set on all brands by default.
+  - **(c) Push differences into `site-config.json`, one spec per behaviour** — the pattern is
+    already established twice (`shippingCityRequired`, `storeLocatorUrlPattern`) — and it must
+    support per-ENV values, not just per-brand.
+    Preferred over `if (brand.name === 'badlands')` branching in specs, which doesn't scale.
+  - **(d) Per-brand skip registry** — explicit, reviewable list of what each brand can't run
+    and why, so skips are visible debt rather than buried `test.skip` calls.
+  **Recommendation: (a) now, then (c) as the mechanism and (b) as the organizing principle,
+  with (d) to keep the remainder honest.** Prereqs for any brand run are already listed under
+  "Brand-portability of the checkout specs" below (`site-config` entry, product CSV, `.env`
+  creds + account ID, **`QA_UA_TOKEN` allow-listed on that brand's zone**) — check those first,
+  or the baseline measures infrastructure gaps instead of coverage gaps.
+  Tooling is ready: `run-brands.js` now writes per-brand `playwright-report/<brand>` and
+  `test-results/<brand>`, so a two-brand baseline is debuggable for both.
+
+- **Brand-portable header nav testing — UNRESOLVED, needs a strategy decision (raised
+  2026-08-19).** *(Blocked on the cross-brand strategy above. `header.spec.js` is
+  `test.fixme()`'d as of 2026-08-19 — known broken, not intentionally skipped.)* The header is the least portable surface in the suite and the current
+  specs only work on DMP. Three separate problems stack up:
+  1. **Different markup per brand.** DMP has a coded Angular header (`a.header__nav__link`
+     with real hrefs). BRP's is Builder-authored: no `href`, no `data-qa`, only volatile
+     `builder-<hash>` classes, and "Shop" is a dropdown rather than a direct link. There is
+     no shared selector, which is why `header.spec.js` and
+     `cart-verify-header-links.spec.js` both `test.skip` badlands.
+  2. **Different hrefs for the same nav item, per page.** Relative on CMS pages, absolute on
+     app pages (see "Cart Header — cross-page gotcha").
+  3. **Different destinations for the same nav item, per brand and over time.** Store
+     Locator moved from `store.<domain>` to a first-party `/store-locator` path on DMP.
+     Handled for that one link via `brand.storeLocatorUrlPattern`, but that approach doesn't
+     scale to a whole nav.
+  **The open question is what we're actually asserting.** Options to weigh:
+  (a) assert only that each nav item EXISTS and NAVIGATES somewhere valid, dropping
+      per-brand URL literals — portable, but weak (a link pointing at the wrong page still
+      passes if that page loads);
+  (b) keep destination assertions but move the whole expected nav (label → URL pattern) into
+      `site-config.json` per brand — precise and portable, but it's config that has to be
+      maintained per brand and per redesign;
+  (c) ask the team for a `data-qa` per nav item (`data-qa="nav-shop"`, `nav-store-locator`,
+      …) so the LINK is found structurally and only the expected destination is configured —
+      the cleanest, but needs dev work on the Builder-authored headers too.
+  **Recommendation: (c) as the goal, (b) as the interim** — (b) can ship now and its config
+  survives the move to (c). Decide before onboarding another brand, or the skip list grows.
+  Do NOT paper over it by relaxing the URL assertions to `/products|shop`-style regexes;
+  that hides real misrouting.
 
 - **Product variant strategy refactor** — extend `brand.cartUrl()` (or add a sibling helper) to support variant pools / fallbacks per test, rather than each test hard-coding a single `productKey`. Driver: avoid Salesforce duplicate-order rejections on real-order tests and simplify per-test variant choice. Open questions to answer at refactor time: how often do dupes actually occur in CI, do all order tests need the same dodging strategy, and what other variant-related needs surfaced during the rest of the migration (e.g. subscription vs standard, price-tier targeting for shipping threshold).
 
@@ -1483,13 +1702,13 @@ level up, to tackle once the port is done and merged, NOT in the migration branc
   - Because those per-field counts differ per row, `quantityValue.nth(i)` against a product-row index both **hangs** on the missing element *and* **silently pairs another row's quantity with this row's name/price**. Both were hit in `order-loggedin-list-reorder` once its Re-Order All pick was randomized onto a subscription-containing order. Fix: `cartPage.productRows` (= `cart-line`) and read each field *inside* the row.
   - **The cart shows the SAME display name for a product's subscription and standard variants** ("Nature's Blend Essential Wellness 16oz" for both), while order history distinguishes them ("… - 1 Bag Subscription" vs "… - 1 Bag"). So name-only matching cannot pair order lines to cart rows — disambiguate with **price** (line total, or unit × qty).
 
-- **⚠️ CONFIRMED BADLANDS app bug — "Re-Order All" silently adds NOTHING for certain orders (found + reproduced 2026-08-04; needs a ticket).** On `uat.badlandsranch.com`, Re-Order All on **`ORD-000875833`** — a *"Superfood Bites … 6 Units Subscription"* (qty 1, $80.94) plus a *"Superfood Complete … 1 Unit"* line at **$0.00** — navigates to `/cart`, which then renders **"Your cart is empty!"** with a **0** cart badge. The click lands (we do reach `/cart`); nothing is added.
-  - **Reproduce deterministically:** `REORDER_ORDER_ID=ORD-000875833 BRAND=badlands ENVIRONMENT=uat npx playwright test tests/order-loggedin-list-reorder.spec.js` (fails 100%).
-  - **Contrast (same brand, passes):** `ORD-000871123` — two normally-priced, non-subscription items — re-orders correctly. And on **DMP**, `ORD-000875589` (subscription qty 2 + standard, both priced) also re-orders correctly. So a subscription alone is NOT the trigger; the **$0 promo/free-gift line is the prime suspect** — but subscription-vs-$0 are still **confounded** in the one failing order, so the exact trigger is not yet isolated.
-  - `order-loggedin-list-reorder.spec.js` is **left failing on purpose**, with an explicit "added NO products … Expected N: <products>" message. Do NOT exclude $0-line orders from the candidate pool — that would hide this.
-  - **Consequence for CI:** because the candidate is picked at RANDOM, this spec fails only when the draw lands on an affected order — i.e. Badlands runs will show **intermittent** red until the app bug is fixed. The chosen ORD- id is always logged, and `REORDER_ORDER_ID` pins it for reproduction.
-  - **CONFIRMED MANUALLY (2026-08-04)** — clicking Re-Order All on `ORD-000875833` by hand in the browser also leaves the cart empty, while `ORD-000871123` works by hand. So this is **app-side, not an automation artifact**.
-  - **TODO:** file the ticket; ask the cart team whether re-ordering a $0 promo line is meant to be unsupported — if so it should surface a message, not silently no-op.
+- **Re-Order All lands on an EMPTY cart when the order carries a $0.00 free/promo line — [CART-9257](https://goldenhippomedia.atlassian.net/browse/CART-9257) (found 2026-08-04, behavior under review).** On `uat.badlandsranch.com`, Re-Order All on **`ORD-000875833`** — a *"Superfood Bites … 6 Units Subscription"* (qty 1, $80.94) plus a *"Superfood Complete … 1 Unit"* line at **$0.00** (a free product attributed to the order) — navigates to `/cart`, which renders **"Your cart is empty!"** with a **0** badge. The click lands; **nothing** is added, not even the paid subscription line, and there is no message.
+  - **CONFIRMED MANUALLY** — reproduces by hand in a browser, so it is **app-side, not an automation artifact**. `ORD-000871123` (two normally-priced items) works by hand and automated; on **DMP** `ORD-000875589` (subscription qty 2 + standard, both priced) also works. So a subscription alone is not the trigger; the **$0.00 line is the differentiator** (subscription + $0.00 remain confounded in the single failing order).
+  - **Open question in the ticket:** the $0.00 price itself is legitimate (a free product on the order). Refusing to re-order a free line may well be intended — but silently emptying the cart instead of adding the paid lines and/or messaging the user is the part under review.
+  - **How the spec handles it (deliberate, two-part):**
+    1. **The gate is DETERMINISTIC.** Re-Order All exercises the **first candidate whose line items are all priced > $0**. A random pick made the spec pass or fail on the draw, which is disqualifying for a regression gate (an unreproducible red gets ignored). The rule needs no hardcoded ORD- id, so it survives history turnover, and **every excluded $0.00 candidate is logged with the CART-9257 reference** — the exclusion is visible, not silent.
+    2. **A characterization test covers the broken shape** — `KNOWN ISSUE CART-9257 …` asserts the CORRECT expectation (the cart should populate) and is marked **`test.fail()`**. While broken it fails, is marked expected, and is named in every run. **When the app is fixed it PASSES, Playwright reports "expected to fail but passed" and the suite goes RED** — forcing that test to be deleted and the gate's $0.00 exclusion to be dropped. That self-cleaning property is why it's a `test.fail()` and **not** a `test.skip()`, which would rot silently.
+  - **Env overrides:** `REORDER_ORDER_ID=<ORD-…>` pins one order (reproduce a specific run); `REORDER_RANDOM=1` restores random selection for exploratory sweeps.
 
 - **Known catalog bug (Jira filed)** — Cart and Order Confirmation render different display names for the Tilly's Treasures variant ("Tilly's Treasure Beef Liver Treats" vs "Dr. Marty Tilly's Treasures - 1 Bag"). `assertProductNamesMatch` in `helpers/order-validations.js` is intentionally left strict so it keeps surfacing this mismatch — do NOT loosen the helper to make the test pass; the fix belongs in the catalog data.
 

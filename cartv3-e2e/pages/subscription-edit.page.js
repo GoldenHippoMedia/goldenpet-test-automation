@@ -441,9 +441,19 @@ class SubscriptionEditPage extends BasePage {
     // prior step already ticked it). A real click on the custom div[role=button].checkbox
     // flips the mat-icon and enables update-btn.
     if (await this.updateBtn.isDisabled().catch(() => true)) {
-      await this.agreeCheckbox.click({ timeout: 5000 }).catch(() => {});
-      // Wait for the tick to enable the button (Angular re-renders on the toggle).
-      await this.page
+      // Was `.catch(() => {})` on BOTH steps below, which swallowed the only two ways this
+      // can go wrong. When the agreement box couldn't be clicked, update-btn stayed disabled
+      // and the NEXT line's click() sat on it until the action/test timeout, reporting
+      // "element is not enabled" with no hint that a checkbox was the cause
+      // (drmarty UAT 2026-08-19). Keep it non-fatal — some callers legitimately arrive with
+      // the box already ticked — but record what happened and let the enable-wait verdict
+      // drive a real error message below.
+      const tickErr = await this.agreeCheckbox
+        .click({ timeout: 5000 })
+        .then(() => null)
+        .catch((e) => e.message);
+
+      const enabled = await this.page
         .waitForFunction(
           () => {
             const b = document.querySelector('[data-qa="update-btn"]');
@@ -451,7 +461,19 @@ class SubscriptionEditPage extends BasePage {
           },
           { timeout: 5000 },
         )
-        .catch(() => {});
+        .then(() => true)
+        .catch(() => false);
+
+      if (!enabled) {
+        throw new Error(
+          'update-btn stayed DISABLED after attempting to tick the "Yes, I want to update my ' +
+          'subscription!" agreement box, so the change cannot be submitted. ' +
+          (tickErr ? `Agreement-box click failed: ${tickErr}. ` : 'Agreement-box click reported success. ') +
+          'The box has no data-qa (see CLAUDE.md) — if the app changed its markup or it is ' +
+          'rendered off-screen/behind an overlay, this locator needs re-auditing. Failing here ' +
+          'rather than letting click() burn the test timeout on a button that will never enable.'
+        );
+      }
     }
     const respP = this.waitForSubscriptionWrite();
     await this.updateBtn.click(); // auto-waits for the button to be enabled

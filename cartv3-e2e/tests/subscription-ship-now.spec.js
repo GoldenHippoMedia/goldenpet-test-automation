@@ -99,7 +99,15 @@ test.describe('Subscriptions - Ship Now', () => {
       await pageObj.openFrequencySection();
       if ((await pageObj.getNextOrderDateInputValue()) !== snapshot.origIso) {
         await pageObj.setNextOrderDateInput(snapshot.origIso);
+
+        // Do NOT pre-check updateBtn.isEnabled() here. It is disabled BY DESIGN until the
+        // "Yes, I want to update my subscription!" agreement box is ticked — and ticking it
+        // is clickUpdate()'s job. A guard here therefore always sees "disabled", skips the
+        // restore, and reports a cheerful false "cannot restore" while silently leaving the
+        // date moved (my own bug, 2026-08-19 — it made the test pass by not doing the work).
+        // clickUpdate() now surfaces a real error if the agreement box can't be ticked.
         await pageObj.clickUpdate();
+        console.log(`[ship-now] restored ${snapshot.sfId} next-order date to ${snapshot.origIso}`);
       }
     } catch (e) {
       console.warn(`[ship-now] self-heal restore failed for ${snapshot.sfId}: ${e.message}`);

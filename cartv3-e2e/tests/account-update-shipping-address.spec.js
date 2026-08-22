@@ -80,11 +80,27 @@ test.describe('Profile & Settings - Update Shipping Address', () => {
       });
 
       // --- required-field validation: each REQUIRED field, cleared individually,
-      //     must show the inline error AND disable Save. Required = Street + Zip/Postal.
-      //     City/Additional/Country/State are OPTIONAL (audit-confirmed 2026-06-05). ---
-      await test.step('required-field validation (Street + Zip/Postal required; others optional)', async () => {
+      //     must show the inline error AND disable Save. Street + Zip/Postal are required
+      //     on every brand; Additional/Country/State are optional on every brand.
+      //
+      //     City is BRAND *and ENV* dependent for now (`brand.shippingCityRequired`, which
+      //     the fixture resolves per env — a release reaches UAT before prod):
+      //       drmarty  — required in BOTH envs (verified 2026-08-19). Matches billing and
+      //                  /checkout, which always required it.
+      //       badlands — required on UAT, NOT yet on prod (both verified 2026-08-19); prod
+      //                  gets it next release. TODO (when fixed): collapse the config to
+      //                  plain `true` — this file needs no change either way.
+      //     Street's error assertion passes on BOTH brands, so this is a real per-brand
+      //     validation difference, not a missing .invalid-message selector. ---
+      const cityRequired = brand.shippingCityRequired;
+      await test.step(
+        `required-field validation (Street + Zip/Postal${cityRequired ? ' + City' : ''} required; others optional)`,
+        async () => {
         const requiredFields = [
           { label: 'Street',     input: account.shipStreetInput, value: original.street },
+          ...(cityRequired
+            ? [{ label: 'City',  input: account.shipCityInput,   value: original.city }]
+            : []),
           { label: 'Zip/Postal', input: account.shipPostalInput, value: original.zip },
         ];
         for (const f of requiredFields) {
@@ -98,10 +114,12 @@ test.describe('Profile & Settings - Update Shipping Address', () => {
           await expect(account.saveBtn, `Save should re-enable once ${f.label} is valid`).toBeEnabled();
         }
 
-        // Optional fields: clearing them must NOT block Save (City + Additional line).
+        // Optional fields: clearing them must NOT block Save.
         const optionalFields = [
-          { label: 'City',       input: account.shipCityInput,       value: original.city },
           { label: 'Additional', input: account.shipAdditionalInput, value: original.additional },
+          ...(cityRequired
+            ? []
+            : [{ label: 'City',  input: account.shipCityInput,       value: original.city }]),
         ];
         for (const f of optionalFields) {
           await f.input.fill('');
