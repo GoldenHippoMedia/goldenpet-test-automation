@@ -95,6 +95,38 @@ remove-modal confirm/cancel buttons do NOT (→ `aria-label` fallback + a logged
   If a future CF rule change starts blocking headless, that's the likely vector — the ask
   to DevOps would be to keep the `DrMartyQA/<token>` skip covering those API paths.
 
+#### `channel: 'chromium'` — required for third-party SDKs in headless (added 2026-08-19)
+The chromium project sets **`channel: 'chromium'`**, which runs FULL Chromium in "new
+headless" mode instead of Playwright's default **headless-shell** binary. The shell is a
+stripped build with a visibly different fingerprint (no `window.chrome`, different
+`Sec-CH-UA`, no GPU stack), and **third-party SDKs fingerprint on exactly that**.
+- **Proof:** `cart-paypal-button` on drmarty UAT was **3/3 headed, 1/3 headless**. The trace
+  showed PayPal's SDK loading fine and the button rendering (`smart/buttons` 200 at 16.5s),
+  then **no `xoplatform/checkout` call at all** — PayPal silently declined to launch the
+  popup. Not a timeout: raising the wait would have changed nothing. With
+  `channel: 'chromium'` it went 3/3 headless on UAT and prod.
+- So §5's "headless works" holds for our own first-party APIs, but **not automatically for
+  embedded third-party widgets**. If a new third-party integration misbehaves only headless,
+  check the fingerprint before adding waits or a headed lane.
+- **CI must install the full binary: `npx playwright install chromium`.** The headless-shell
+  install alone will not satisfy this channel.
+
+### 6. Timeout ceilings and traces (config, 2026-08-19)
+`playwright.config.js` `use` now sets:
+- **`actionTimeout: 20000` / `navigationTimeout: 45000`.** Playwright defaults BOTH to `0` =
+  **no timeout**, so any un-timed `click()` / `waitFor()` / `fill()` was bounded only by the
+  TEST timeout. That single gap produced four separate "hangs" chased in one session — the
+  header `shopLink.click` (270s), the login submit click (90s), `account-main-page-links`'
+  `manageSubscriptionsBtn.waitFor` (270s) and `cart-verify-header-links` (90s) — each
+  reporting a vague "Test timeout exceeded" naming whatever call was in flight. An EXPLICIT
+  timeout in code always wins over these, so already-tuned waits are unaffected. **Raise a
+  specific call's timeout rather than these ceilings.**
+- **`trace: 'retain-on-failure'`** (was `'on-first-retry'`, which with `retries: 0` meant
+  traces were **NEVER** captured). Every failure now carries a full timeline, DOM snapshots
+  and network log: `npx playwright show-trace test-results/<brand>/<test>/trace.zip`. This is
+  what settled the PayPal question above in ~30 seconds instead of another 5-minute run —
+  reach for the trace before theorising.
+
 ---
 
 ## Open Follow-ups & Known Issues (START HERE for anything outstanding)
@@ -1422,8 +1454,11 @@ Money parsing: `parseMoney("$179.85")` → `179.85`, `parseMoney("Free")` → `0
 | `run-brands` runs brand 1 then hangs forever | `reporter:'html'` defaults to `open:'on-failure'` → blocking report server; `spawnSync` waits on it, and the Ctrl+C to escape kills the whole run so later brands never execute | Fixed in `run-brands.js` (`PLAYWRIGHT_HTML_OPEN=never` + per-brand report/output dirs). Don't "fix" it by changing the config reporter — single-brand runs still auto-open |
 | PayPal spec sits silent then reports only `waiting for event "popup"` | Unbounded `page.waitForEvent('popup')` eats the whole 90s test timeout | Pass an explicit `{ timeout }` and a label naming the surface (`cart / subscription`, …) |
 | 90s of `element is not enabled` on `[data-qa="login-btn"]`, often with `element was detached from the DOM, retrying` | The Angular login form **re-mounts during the click** — after fill+verify succeeded. The re-mount wipes the inputs and re-disables submit, and `click()`'s unbounded auto-wait then consumes the whole test timeout (badlands UAT 2026-08-19) | `LoginPage.loginAndWait()` retries **fill → enable-check → click → navigate as one unit**, every wait bounded, and only while still on `/login`. Don't split the enable-check away from the click, and don't leave the click unbounded |
+| `order-loggedin-list-reorder` SKIPS and the run still reports PASS | Its Re-Order All target is chosen from LIVE shared-account data, so no eligible order = nothing to test. Green with zero coverage | Read the **preflight census** the spec prints (candidates / gate-eligible / per-ticket exclusions). It names one of two causes: **TEST-DATA GAP** — place 1 order with 2+ distinct products, all > $0, none repeated (Re-Order All only renders on multi-product orders); or **BUG-BLOCKED** — every candidate hits CART-9257/CART-9124, nothing to do until those land |
+| Re-Order All gate skips even though a usable order exists | Candidate collection stopped too shallow. It once paginated only when page 1 had ZERO candidates (badlands UAT never saw its usable page-2 order), then only ever checked page 2 (drmarty prod's sit deeper) | `collectReorderCandidates()` now walks pages until one SERVES the caller's eligibility rule (`maxPages` is a runaway guard). `reloadCandidates()` must re-paginate to the SAME `pageNum` — passing a boolean there silently never paginates (`1 < true` is false) and resolves against page 1's cards |
+| `image must render (naturalWidth > 0)` fails intermittently on order cards | `snapshotCard` reads `naturalWidth`/`complete` SYNCHRONOUSLY with nothing waiting on the image, so a card captured mid-load reports false | Wait (bounded) for `imgs.every(i => i.complete)` before snapshotting. This does NOT weaken the check: a 404'd image reports `complete: true` with `naturalWidth: 0`, so a genuinely broken asset still fails |
 | Cart quantity asserts 1 when the order had more, but the PRICE matches | Read `[data-qa="product-quantity"]` (pack text "1 Jar") instead of `[data-qa="quantity"]` (stepper) | See the Cart Page selector table — stepper first, pack text only for subscription rows |
-| Subscription self-heal hangs on a disabled `[data-qa="update-btn"]` | The value being restored is no longer VALID (e.g. Ship Now advanced the cycle, so the original next-order date is now in the past and the form rejects it) — Angular keeps Update disabled and `click()` waits forever | Check `updateBtn.isEnabled()` before clicking; if disabled, log the sub id + target date for manual cleanup instead of clicking. A self-heal that can't heal must say so, not hang |
+| Subscription update hangs on a disabled `[data-qa="update-btn"]` | `update-btn` is disabled **by design** until the "Yes, I want to update my subscription!" agreement box is ticked — a valid change alone does NOT enable it | `clickUpdate()` ticks that box itself. **Never pre-check `updateBtn.isEnabled()` before calling it** — the button is legitimately disabled at that moment, so a guard there skips the work and reports a confident false "cannot restore" (my own bug, 2026-08-19: it made ship-now "pass" by not restoring). If it still hangs, the agreement box locator is the suspect — it has no `data-qa`; `clickUpdate()` now throws naming it |
 | Login helper "fixed" but a spec that used to pass now fails | A shared login helper is on the critical path of nearly every logged-in spec, so any hard failure or over-strict gate in it fails specs that were fine | `fillCredentials()` must never throw (best-effort refill); only `loginAndWait()` may fail, and only after bounded retries with the observed form state in the message |
 
 ---
